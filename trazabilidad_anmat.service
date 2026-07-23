@@ -1,0 +1,22 @@
+[Unit]
+Description=Trazabilidad ANMAT Service
+After=network.target firebird-superserver.service
+Wants=firebird-superserver.service
+
+[Service]
+Type=simple
+User=trazabilidad
+Group=trazabilidad
+WorkingDirectory=/opt/trazabilidad_anmat
+Environment="PATH=/opt/trazabilidad_anmat/venv/bin"
+ExecStart=/opt/trazabilidad_anmat/venv/bin/python app.py
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/trazabilidad_anmat.log
+StandardError=append:/var/log/trazabilidad_anmat.err.log
+
+[Install]
+WantedBy=multi-user.target

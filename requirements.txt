@@ -1,0 +1,9 @@
+flask>=2.0
+flask-limiter>=3.0
+apscheduler>=3.10
+firebird-driver>=2.0
+python-dotenv>=0.19
+git+https://github.com/rollyar/pysimplesoap.git
+future>=0.18
+cryptography>=41.0
+requests>=2.28

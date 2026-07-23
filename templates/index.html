@@ -1,0 +1,2118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trazabilidad ANMAT</title>
+    <link rel="shortcut icon" href="data:,">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .header h1 {
+            font-size: 24px;
+        }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .status-connected {
+            background: #10b981;
+        }
+        .status-disconnected {
+            background: #ef4444;
+        }
+        .container {
+            padding: 20px 30px;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .stat-card.ingresos { border-left: 4px solid #3b82f6; }
+        .stat-card.egresos { border-left: 4px solid #10b981; }
+        .stat-card.errores { border-left: 4px solid #ef4444; }
+        .stat-card.pendientes { border-left: 4px solid #f59e0b; }
+
+        .btn-reporte {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-reporte:hover {
+            background: #2563eb;
+        }
+        .btn-reporte:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        #glnSelect {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .tab.active {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+            overflow-x: auto;
+        }
+        .table-container.active {
+            display: block;
+        }
+        .table-container.active.flex {
+            display: flex;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 8px 6px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            white-space: nowrap;
+        }
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #666;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: help;
+        }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-error { background: #fee2e2; color: #991b1b; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-ingreso { background: #dbeafe; color: #1e40af; }
+        .badge-egreso { background: #d1fae5; color: #065f46; }
+
+        /* Columna descripción con tooltip */
+        #eventosBody td:nth-child(9) {
+            max-width: 180px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: help;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .last-update {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        /* Cards de resumen */
+        .stat-card .label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 6px;
+        }
+        .stat-card .value {
+            font-size: 36px;
+            font-weight: bold;
+            line-height: 1.1;
+        }
+        .stat-card.ingresos .value { color: #3b82f6; }
+        .stat-card.egresos .value  { color: #10b981; }
+        .stat-card.errores .value  { color: #ef4444; }
+        .stat-card.pendientes .value { color: #f59e0b; }
+        .stat-card .icon {
+            font-size: 22px;
+            margin-bottom: 6px;
+        }
+        .autorefresh-note {
+            font-size: 11px;
+            color: #aaa;
+            text-align: right;
+            margin-bottom: 8px;
+        }
+        .stat-card.active-filter {
+            outline: 3px solid currentColor;
+            outline-offset: 2px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+        }
+        .filtro-activo-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 8px 14px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #1d4ed8;
+        }
+        .filtro-activo-banner button {
+            background: none;
+            border: none;
+            color: #1d4ed8;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0 4px;
+        }
+
+        .status-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .loading-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #3b82f6;
+        }
+
+        .loading-indicator.active {
+            display: flex;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #3b82f6;
+            border-radius: 50%;
+            border-right-color: transparent;
+            animation: spin 0.6s linear infinite;
+        }
+
+        .status-message {
+            font-size: 13px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .btn-action {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .btn-report { background: #3b82f6; color: white; }
+        .btn-report:hover { background: #2563eb; }
+        .btn-fix { background: #f59e0b; color: white; }
+        .btn-fix:hover { background: #d97706; }
+        .btn-search { background: #10b981; color: white; }
+        .btn-search:hover { background: #059669; }
+
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            min-width: 800px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .form-row .form-group {
+            flex: 1;
+            min-width: 150px;
+        }
+        .form-row .form-group.small {
+            flex: 0 0 120px;
+        }
+
+        .table-scroll {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+        .table-scroll table {
+            min-width: 800px;
+        }
+
+        .search-box {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .search-box h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .search-results {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .results-info {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f0f9ff;
+            border-radius: 5px;
+            color: #0369a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Trazabilidad ANMAT</h1>
+        <div class="status-section">
+            <div id="loadingIndicator" class="loading-indicator">
+                <div class="spinner"></div>
+                <span id="statusMessage">Cargando...</span>
+            </div>
+            <span id="connectionStatus" class="status-badge status-disconnected" onclick="testConnection()">Desconectado</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div style="margin-bottom: 20px;">
+            <label for="glnSelect">Sucursal: </label>
+            <select id="glnSelect" onchange="changeGln()">
+                <option value="">Cargando...</option>
+            </select>
+        </div>
+
+        <!-- Cards de resumen -->
+        <div id="statsCards" class="stats-grid" style="margin-bottom:24px;">
+            <div class="stat-card ingresos" id="card-recepciones_hoy" onclick="filtrarPorCard('recepciones_hoy')">
+                <div class="icon">📥</div>
+                <h3>Recepciones Hoy</h3>
+                <div class="value" id="cardRecepciones">-</div>
+                <div class="label">Reportadas OK</div>
+            </div>
+            <div class="stat-card egresos" id="card-dispensas_hoy" onclick="filtrarPorCard('dispensas_hoy')">
+                <div class="icon">💊</div>
+                <h3>Dispensas Hoy</h3>
+                <div class="value" id="cardDispensas">-</div>
+                <div class="label">Reportadas OK</div>
+            </div>
+            <div class="stat-card pendientes" id="card-pendientes" onclick="filtrarPorCard('pendientes')">
+                <div class="icon">⏳</div>
+                <h3>Pendientes</h3>
+                <div class="value" id="cardPendientes">-</div>
+                <div class="label">Sin reportar</div>
+            </div>
+            <div class="stat-card errores" id="card-con_error" onclick="filtrarPorCard('con_error')">
+                <div class="icon">⚠️</div>
+                <h3>Con Error</h3>
+                <div class="value" id="cardErrores">-</div>
+                <div class="label">Este mes</div>
+            </div>
+        </div>
+        <div id="autoRefreshNote" class="autorefresh-note">
+            Actualización automática cada 2 min — última: <span id="ultimaActualizacion">-</span>
+        </div>
+
+        <div class="tabs">
+            <button id="tab-eventos" class="tab active" onclick="showTab('eventos')">Eventos</button>
+            <button id="tab-no-confirmadas" class="tab" onclick="showTab('no_confirmadas')">No Confirmadas ANMAT</button>
+            <button id="tab-buscar-anmat" class="tab" onclick="showTab('buscar_anmat')">Buscar Transacciones ANMAT</button>
+            <button id="tab-conciliar" class="tab" onclick="showTab('conciliar')">Conciliación</button>
+        </div>
+
+        <div id="eventosTable" class="table-container active" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+            <div style="flex-shrink:0;">
+                <h3>Eventos</h3>
+                <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <button id="btn-actualizar" class="btn-reporte" onclick="loadEventos()">Actualizar</button>
+                    <button id="btn-reportar" class="btn-reporte" onclick="reportarPendientes()">Reportar Pendientes</button>
+                    <button id="btn-reportar-errores" class="btn-reporte" onclick="reportarErrores()" style="background:#8b5cf6;">Corregir desde ANMAT</button>
+                    <div style="margin-left: auto; display: flex; gap: 5px; align-items: center;">
+                        <span>Filtrar:</span>
+                        <select id="filtroFecha" onchange="cambiarFiltroFecha()" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="hoy" selected>Hoy</option>
+                            <option value="semana">Esta Semana</option>
+                            <option value="mes">Este Mes</option>
+                            <option value="anio">Este Año</option>
+                            <option value="personalizado">Personalizado</option>
+                        </select>
+                        <input type="date" id="fechaDesde" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; display: none;">
+                        <input type="date" id="fechaHasta" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; display: none;">
+                    </div>
+                </div>
+                <div id="filtroActivoBanner" class="filtro-activo-banner" style="display:none;">
+                <span id="filtroActivoTexto"></span>
+                <button onclick="limpiarFiltroCard()" title="Quitar filtro">✕</button>
+            </div>
+            </div>
+            <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>FECHA</th>
+                        <th>TIPO</th>
+                        <th>ORIGEN</th>
+                        <th>DESTINO</th>
+                        <th>GTIN</th>
+                        <th>LOTE</th>
+                        <th>NRO SERIE</th>
+                        <th>VENC.</th>
+                        <th>ESTADO</th>
+                        <th>DESCRIPCIÓN</th>
+                        <th>ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody id="eventosBody"></tbody>
+            </table>
+            </div>
+        </div>
+
+        <div id="noConfirmadasTable" class="table-container" style="display:none;flex-direction:column;flex:1;min-height:0;">
+            <div style="flex-shrink:0;">
+                <h3>Transacciones No Confirmadas en ANMAT</h3>
+                <div style="margin-bottom: 15px;">
+                    <button id="btn-actualizar-nc" class="btn-reporte" onclick="loadNoConfirmadas()">Actualizar</button>
+                </div>
+                <div id="noConfirmadasSummary" style="margin-bottom: 15px;"></div>
+            </div>
+            <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>FECHA</th>
+                        <th>MEDICAMENTO</th>
+                        <th>GTIN</th>
+                        <th>LOTE</th>
+                        <th>VENC.</th>
+                        <th>NRO SERIE</th>
+                        <th>PROVEEDOR</th>
+                        <th>ACCIÓN</th>
+                    </tr>
+                </thead>
+                <tbody id="noConfirmadasBody"></tbody>
+            </table>
+            </div>
+        </div>
+
+        <!-- Modal de decisión para transacciones no confirmadas -->
+        <div id="modalDecision" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:2000; align-items:center; justify-content:center;">
+          <div style="background:#fff; border-radius:10px; padding:28px; max-width:640px; width:92%; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+            <h3 style="margin-top:0; color:#1e293b;">Decisión sobre Transacción</h3>
+            <div id="modalDecisionInfo" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:14px; margin-bottom:18px; font-size:0.9em; line-height:1.7;"></div>
+            <p style="color:#64748b; font-size:0.85em; margin-bottom:14px;">Seleccioná una acción. La confirmación creará el comprobante local si no existe.</p>
+            <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+              <button id="btnModalConfirmar" class="btn-reporte" style="background:#10b981;" onclick="ejecutarConfirmar()">✓ Confirmar recepción</button>
+              <button id="btnModalAlertar" class="btn-reporte" style="background:#f59e0b;" onclick="ejecutarAlertar()">⚠ Alertar anomalía</button>
+              <button class="btn-reporte" style="background:#6b7280; margin-left:auto;" onclick="cerrarModalDecision()">Cerrar</button>
+            </div>
+            <div id="modalDecisionResult" style="display:none; padding:12px; border-radius:6px; margin-top:10px; font-weight:500;"></div>
+          </div>
+        </div>
+
+        <div id="buscarAnmatTable" class="table-container" style="display:none;flex-direction:column;flex:1;min-height:0;">
+            <div class="search-box" style="flex-shrink:0;">
+                <h3>Buscar Transacciones en ANMAT (GetTransaccionesWS)</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>GTIN</label>
+                        <input type="text" id="searchGtinAnmat" placeholder="Código GTIN (sin ceros adelante)">
+                    </div>
+                    <div class="form-group small">
+                        <label>Serie</label>
+                        <input type="text" id="searchSerieAnmat" placeholder="Número de serie">
+                    </div>
+                    <div class="form-group">
+                        <label>GLN Origen</label>
+                        <input type="text" id="searchGlnOrigen" placeholder="Proveedor / Sucursal">
+                    </div>
+                    <div class="form-group">
+                        <label>GLN Destino</label>
+                        <input type="text" id="searchGlnDestino" placeholder="Sucursal / Paciente">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group small">
+                        <label>Evento</label>
+                        <select id="searchEvento">
+                            <option value="">Todos</option>
+                            <option value="101">101 - Ingreso</option>
+                            <option value="108">108 - Transferencia</option>
+                            <option value="111">111 - Dispensación</option>
+                            <option value="98">98 - Distribución</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha Desde</label>
+                        <input type="text" id="searchFechaDesde" placeholder="DD/MM/YYYY">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha Hasta</label>
+                        <input type="text" id="searchFechaHasta" placeholder="DD/MM/YYYY">
+                    </div>
+                    <div class="form-group small">
+                        <label>N° Remito</label>
+                        <input type="text" id="searchRemito" placeholder="Remito">
+                    </div>
+                    <div class="form-group small">
+                        <label>N° Factura</label>
+                        <input type="text" id="searchFactura" placeholder="Factura">
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button id="btn-buscar-anmat" class="btn-reporte" onclick="buscarTransaccionesAnmat()">Buscar</button>
+                    <button class="btn-reporte" onclick="limpiarBusquedaAnmat()" style="background: #6b7280; margin-left: 10px;">Limpiar</button>
+                </div>
+            </div>
+            <div class="search-results" style="flex:1;min-height:0;overflow-y:auto;">
+                <div id="buscarAnmatSummary" class="results-info" style="display: none;"></div>
+                <div id="buscarAnmatError" style="display: none; padding: 15px; background: #fee2e2; color: #991b1b; border-radius: 5px; margin-bottom: 15px;"></div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID TRANSACCIÓN</th>
+                            <th>FECHA</th>
+                            <th>GTIN</th>
+                            <th>LOTE</th>
+                            <th>VENC.</th>
+                            <th>NRO SERIE</th>
+                            <th>GLN ORIGEN</th>
+                            <th>GLN DESTINO</th>
+                            <th>CÓDIGO TRANSACCIÓN</th>
+                            <th>ESTADO</th>
+                        </tr>
+                    </thead>
+                    <tbody id="buscarAnmatBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="conciliarTable" class="table-container" style="display:none;flex-direction:column;flex:1;min-height:0;">
+            <div style="flex-shrink:0;">
+                <h3>Conciliación de Transacciones ANMAT</h3>
+                <div id="conciliarSummary" class="stats-grid" style="margin-bottom:15px;grid-template-columns:repeat(4,1fr);">
+                <div class="stat-card" id="cstat-exacto" style="border-left:4px solid #10b981;cursor:default;">
+                    <div class="value" style="font-size:24px;color:#10b981;" id="countExacto">-</div>
+                    <h3>Match Exacto</h3>
+                    <div class="label">Auto-confirmable</div>
+                </div>
+                <div class="stat-card" id="cstat-parcial" style="border-left:4px solid #f59e0b;cursor:default;">
+                    <div class="value" style="font-size:24px;color:#f59e0b;" id="countParcial">-</div>
+                    <h3>Match Parcial</h3>
+                    <div class="label">Requiere revisión</div>
+                </div>
+                <div class="stat-card" id="cstat-debil" style="border-left:4px solid #3b82f6;cursor:default;">
+                    <div class="value" style="font-size:24px;color:#3b82f6;" id="countDebil">-</div>
+                    <h3>Match Débil</h3>
+                    <div class="label">Verificar manualmente</div>
+                </div>
+                <div class="stat-card" id="cstat-sinmatch" style="border-left:4px solid #ef4444;cursor:default;">
+                    <div class="value" style="font-size:24px;color:#ef4444;" id="countSinMatch">-</div>
+                    <h3>Sin Match</h3>
+                    <div class="label">Buscar comprobante</div>
+                </div>
+            </div>
+            <div style="margin-bottom:15px;display:flex;gap:10px;align-items:center;">
+                <button id="btn-actualizar-conciliar" class="btn-reporte" onclick="loadConciliar()">Actualizar</button>
+                <button id="btn-confirmar-exactos" class="btn-reporte" style="background:#10b981;" onclick="confirmarMatchExactos()">✓ Confirmar Match Exactos</button>
+                <span class="status-message" id="conciliarStatus"></span>
+            </div>
+            </div>
+            <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>FECHA</th>
+                        <th>PROVEEDOR</th>
+                        <th>GTIN</th>
+                        <th>PRODUCTO</th>
+                        <th>LOTE</th>
+                        <th>VENC.</th>
+                        <th>NRO SERIE</th>
+                        <th>FACTURA</th>
+                        <th>MATCH</th>
+                        <th>ACCIÓN</th>
+                    </tr>
+                </thead>
+                <tbody id="conciliarBody"></tbody>
+            </table>
+        </div>
+    </div>
+    </div>
+
+    <!-- Modal Conciliación -->
+    <div id="modalConciliar" class="modal">
+        <div class="modal-content" style="max-width:900px;">
+            <div class="modal-header">
+                <h3>Conciliar Transacción</h3>
+                <button class="modal-close" onclick="cerrarModalConciliar()">&times;</button>
+            </div>
+            <div id="modalConciliarInfo" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:16px;font-size:0.9em;line-height:1.7;"></div>
+            <div id="modalConciliarCandidatos">
+                <h4 style="margin-bottom:10px;">Comprobantes locales candidatos</h4>
+                <div id="modalCandidatosBody" style="max-height:300px;overflow-y:auto;"></div>
+            </div>
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;">
+                <h4 style="margin-bottom:10px;">Buscar otro comprobante</h4>
+                <div class="form-row">
+                    <div class="form-group small">
+                        <label>GTIN</label>
+                        <input type="text" id="mcGtin" placeholder="GTIN">
+                    </div>
+                    <div class="form-group small">
+                        <label>N° Factura</label>
+                        <input type="text" id="mcFactura" placeholder="Ej: A001000000001">
+                    </div>
+                    <div class="form-group small">
+                        <label>N° Remito</label>
+                        <input type="text" id="mcRemito" placeholder="Remito">
+                    </div>
+                    <div class="form-group small">
+                        <label>Fecha Desde</label>
+                        <input type="date" id="mcFechaDesde">
+                    </div>
+                    <div class="form-group small">
+                        <label>Fecha Hasta</label>
+                        <input type="date" id="mcFechaHasta">
+                    </div>
+                </div>
+                <button class="btn-reporte" onclick="buscarComprobantesConciliar()" style="margin-top:8px;">Buscar</button>
+                <div id="modalBuscarResult" style="margin-top:10px;"></div>
+            </div>
+            <div id="modalConciliarResult" style="display:none;padding:12px;border-radius:6px;margin-top:12px;font-weight:500;"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'ingresos';
+        let currentGln = null;
+        let isLoading = false;
+        let filtroFecha = 'hoy';
+        let fechaDesde = null;
+        let fechaHasta = null;
+        let filtroCard = null;
+        let datosOriginales = { gtin: '', lote: '', serie: '', fecha: '', vencimiento: '' };
+
+        const CARD_LABELS = {
+            recepciones_hoy: 'Recepciones Hoy (reportadas OK)',
+            dispensas_hoy:   'Dispensas Hoy (reportadas OK)',
+            pendientes:      'Pendientes (sin reportar)',
+            con_error:       'Con Error',
+        };
+
+        function filtrarPorCard(tipo) {
+            if (filtroCard === tipo) {
+                limpiarFiltroCard();
+                return;
+            }
+            filtroCard = tipo;
+            // Marcar card activa
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));
+            const card = document.getElementById('card-' + tipo);
+            if (card) card.classList.add('active-filter');
+            // Mostrar banner
+            document.getElementById('filtroActivoTexto').textContent = 'Filtro activo: ' + CARD_LABELS[tipo];
+            document.getElementById('filtroActivoBanner').style.display = 'flex';
+            // Ir a la tab de eventos y cargar
+            showTab('eventos');
+            loadEventos();
+        }
+
+        function limpiarFiltroCard() {
+            filtroCard = null;
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));
+            document.getElementById('filtroActivoBanner').style.display = 'none';
+            loadEventos();
+        }
+
+        function getFechasPorFiltro(filtro) {
+            const hoy = new Date();
+            let desde, hasta;
+
+            switch(filtro) {
+                case 'hoy':
+                    desde = new Date(hoy);
+                    hasta = new Date(hoy);
+                    break;
+                case 'semana':
+                    desde = new Date(hoy);
+                    desde.setDate(desde.getDate() - desde.getDay()); // Domingo
+                    hasta = new Date(desde);
+                    hasta.setDate(hasta.getDate() + 6); // Sábado
+                    break;
+                case 'mes':
+                    desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+                    hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+                    break;
+                case 'anio':
+                    desde = new Date(hoy.getFullYear(), 0, 1);
+                    hasta = new Date(hoy.getFullYear(), 11, 31);
+                    break;
+                case 'personalizado':
+                    return { desde: fechaDesde, hasta: fechaHasta };
+                default:
+                    desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+                    hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+            }
+
+            function localISO(d) {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            }
+            return { desde: localISO(desde), hasta: localISO(hasta) };
+        }
+
+        function cambiarFiltroFecha() {
+            const select = document.getElementById('filtroFecha');
+            const desdeInput = document.getElementById('fechaDesde');
+            const hastaInput = document.getElementById('fechaHasta');
+
+            filtroFecha = select.value;
+
+            if (filtroFecha === 'personalizado') {
+                desdeInput.style.display = 'inline-block';
+                hastaInput.style.display = 'inline-block';
+                fechaDesde = desdeInput.value;
+                fechaHasta = hastaInput.value;
+            } else {
+                desdeInput.style.display = 'none';
+                hastaInput.style.display = 'none';
+                fechaDesde = null;
+                fechaHasta = null;
+            }
+
+            loadEventos();
+        }
+
+        function setBotonesHabilitados(habilitados) {
+            isLoading = !habilitados;
+            const ids = ['btn-actualizar', 'btn-reportar', 'btn-reportar-errores', 'btn-actualizar-nc'];
+            ids.forEach(id => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                if (id === 'btn-reportar-errores' && btn.textContent.includes('sincronizado')) {
+                    btn.disabled = true;
+                } else if (id === 'btn-reportar-errores' && btn.textContent === 'Sin pendientes') {
+                    btn.disabled = true;
+                } else {
+                    btn.disabled = !habilitados;
+                }
+            });
+        }
+
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const partes = dateStr.split('/');
+            if (partes.length === 3) {
+                const day = partes[0];
+                const month = partes[1];
+                const year = partes[2].length === 4 ? partes[2] : '20' + partes[2];
+                return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+            }
+            const date = new Date(dateStr);
+            return date.toLocaleString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
+
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            const partes = dateStr.split('/');
+            if (partes.length === 3) {
+                const day = partes[0];
+                const month = partes[1];
+                const year = partes[2].length === 4 ? partes[2] : '20' + partes[2];
+                return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+            }
+            const date = new Date(dateStr);
+            return date.toLocaleString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function showTab(tab) {
+            currentTab = tab;
+
+            // Quitar active de todos
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.table-container').forEach(t => {
+                t.classList.remove('active');
+                t.classList.remove('flex');
+            });
+
+            // Buscar elementos por ID
+            const tabEl = document.getElementById('tab-' + tab.replace('_', '-'));
+            // Mapear nombres de tabs a IDs de tablas
+            const tableIds = {
+                'eventos': 'eventosTable',
+                'no_confirmadas': 'noConfirmadasTable',
+                'buscar_anmat': 'buscarAnmatTable',
+                'conciliar': 'conciliarTable'
+            };
+            const tableEl = document.getElementById(tableIds[tab]);
+
+            if (tabEl) tabEl.classList.add('active');
+            if (tableEl) {
+                tableEl.classList.add('active');
+                if (tab === 'eventos' || tab === 'no_confirmadas' || tab === 'conciliar') {
+                    tableEl.classList.add('flex');
+                }
+            }
+
+            // Cargar datos según el tab
+            if (tab === 'eventos') {
+                loadEventos();
+            } else if (tab === 'no_confirmadas') {
+                loadNoConfirmadas();
+            } else if (tab === 'conciliar') {
+                loadConciliar();
+            }
+            // buscar_anmat no necesita cargar datos al inicio
+        }
+
+        async function loadEventos() {
+            if (isLoading) return;
+            setBotonesHabilitados(false);
+            try {
+                showLoading('Cargando eventos...');
+
+                let url = currentGln
+                    ? `/api/movimientos?gln=${currentGln}&limit=2000`
+                    : `/api/movimientos?limit=2000`;
+
+                if (filtroCard) {
+                    url += `&filtro=${filtroCard}`;
+                } else {
+                    const fechas = getFechasPorFiltro(filtroFecha);
+                    if (fechas.desde) url += `&fecha_desde=${fechas.desde}`;
+                    if (fechas.hasta) url += `&fecha_hasta=${fechas.hasta}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                const tbody = document.getElementById('eventosBody');
+                tbody.innerHTML = '';
+
+                if (!data || !Array.isArray(data)) {
+                    tbody.innerHTML = `<tr><td colspan="11" style="color:red;">Error: ${data?.error || 'No hay datos'}</td></tr>`;
+                    hideLoading();
+                    setBotonesHabilitados(true);
+                    return;
+                }
+
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+
+                    const esIngreso = row.ML_ID === 101 || row.ML_ID === 108;
+                    const glnSucursal = row.GLN_SUCURSAL || '';
+                    const glnProveedor = row.GLN_PROVEEDOR || '';
+
+                    // Tipo de movimiento
+                    const tipoLabel = row.ML_ID === 101 ? 'Recepción'
+                        : row.ML_ID === 108 ? 'Dev. Recibida'
+                        : row.ML_ID === 111 ? 'Dispensa'
+                        : row.ML_ID === 98  ? 'Distribución'
+                        : `ML${row.ML_ID}`;
+                    const tipoCss = esIngreso ? 'badge-ingreso' : 'badge-egreso';
+
+                    const origen = esIngreso ? (glnProveedor || 'Sin GLN') : glnSucursal;
+                    const destino = esIngreso ? glnSucursal : (
+                        (row.APELLIDO_AFILIADO || row.NOMBRE_AFILIADO)
+                            ? `${row.APELLIDO_AFILIADO || ''}, ${row.NOMBRE_AFILIADO || ''}`.trim()
+                            : 'Paciente'
+                    );
+
+                    const fechaEvento = row.FECHA_COMPROBANTE || row.ALTA || '';
+                    const resultado = row.ANMAT_RESULTADO;
+                    const tieneTransaccion = row.ANMAT_TRANSACCION !== null && row.ANMAT_TRANSACCION !== undefined && row.ANMAT_TRANSACCION !== '';
+
+                    let estado = '';
+                    let descripcion = '';
+                    if (resultado === 1) {
+                        estado = '<span class="badge badge-success">✓ Reportado</span>';
+                    } else if (resultado === 0) {
+                        estado = `<span class="badge badge-error">✗ Error ${row.ANMAT_ERROR_CODIGO || ''}</span>`;
+                        descripcion = row.ANMAT_ERROR_DESCRIPCION || '';
+                    } else if (tieneTransaccion) {
+                        estado = '<span class="badge badge-pending">⏳ Sin confirmar</span>';
+                    } else {
+                        estado = '<span class="badge badge-pending">⏳ Pendiente</span>';
+                    }
+
+                    let acciones = '';
+                    if (resultado !== 1) {
+                        acciones = `<button class="btn-action btn-report" onclick="reportarMovimiento(${row.ID})">Reportar</button>`;
+                        if (resultado === 0 && row.ANMAT_ERROR_CODIGO !== '3108') {
+                            acciones += ` <button class="btn-action btn-fix" onclick="abrirModalCorregir(${row.ID}, '${row.GTIN || ''}', '${row.LOTE || ''}', '${row.NUMERO_SERIAL || ''}', '${row.VENCIMIENTO || ''}')">Corregir</button>`;
+                        }
+                    }
+
+                    const descCorta = descripcion.length > 60
+                        ? descripcion.substring(0, 60) + '...'
+                        : descripcion;
+
+                    tr.innerHTML = `
+                        <td>${formatDate(fechaEvento)}</td>
+                        <td><span class="badge ${tipoCss}">${tipoLabel}</span></td>
+                        <td>${origen}</td>
+                        <td>${destino}</td>
+                        <td>${row.GTIN || '-'}</td>
+                        <td>${row.LOTE || '-'}</td>
+                        <td>${row.NUMERO_SERIAL || '-'}</td>
+                        <td>${formatDate(row.VENCIMIENTO) || '-'}</td>
+                        <td>${estado}</td>
+                        <td title="${descripcion}">${descCorta}</td>
+                        <td>${acciones}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                hideLoading();
+                setBotonesHabilitados(true);
+            } catch (e) {
+                console.error('Error:', e);
+                hideLoading();
+                setBotonesHabilitados(true);
+            }
+        }
+
+        async function reportarPendientes() {
+            if (isLoading) return;
+
+            const glnSelect = document.getElementById('glnSelect');
+            const gln = glnSelect ? glnSelect.value : null;
+
+            if (!gln) {
+                alert('Por favor seleccione una sucursal (GLN) antes de reportar.');
+                return;
+            }
+
+            if (!confirm('¿Reportar todos los movimientos pendientes a ANMAT para esta sucursal?')) return;
+
+            setBotonesHabilitados(false);
+            try {
+                showLoading('Reportando movimientos pendientes...');
+                const url = `/api/reporte_manual?gln=${gln}`;
+                const response = await fetch(url, { method: 'POST' });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert('Error: ' + (data.error || 'Error desconocido'));
+                } else if (data.error) {
+                    alert('Error: ' + data.error + '\n\nTotal: ' + (data.total || 0));
+                } else if (data.total === 0) {
+                    alert('No hay movimientos pendientes para reportar.');
+                } else {
+                    alert(`Resultados:\nTotal: ${data.total}\nExitosos: ${data.exitosos || 0}\nFallidos: ${data.fallidos || 0}`);
+                }
+                loadEventos();
+                loadStats();
+            } catch (e) {
+                alert('Error al reportar: ' + e);
+            }
+            hideLoading();
+            setBotonesHabilitados(true);
+        }
+
+        async function checkSyncState(gln) {
+            try {
+                const resp = await fetch(`/api/sync_state?gln=${gln}`);
+                return await resp.json();
+            } catch (e) {
+                return { completa: false, hay_pendientes: false };
+            }
+        }
+
+        async function actualizarBotonSync(gln) {
+            const btn = document.getElementById('btn-reportar-errores');
+            if (!btn) return;
+            const state = await checkSyncState(gln);
+            if (state.completa) {
+                btn.disabled = true;
+                btn.textContent = '✓ ANMAT sincronizado';
+                btn.style.background = '#6b7280';
+            } else if (state.hay_pendientes) {
+                btn.disabled = false;
+                btn.textContent = 'Corregir desde ANMAT';
+                btn.style.background = '#8b5cf6';
+            } else {
+                btn.disabled = true;
+                btn.textContent = 'Sin pendientes';
+                btn.style.background = '#6b7280';
+            }
+        }
+
+        async function reportarErrores() {
+            if (isLoading) return;
+            const glnSelect = document.getElementById('glnSelect');
+            const gln = glnSelect ? glnSelect.value : null;
+            if (!gln) {
+                alert('Por favor seleccione una sucursal (GLN) antes de corregir.');
+                return;
+            }
+            const state = await checkSyncState(gln);
+            if (state.completa) {
+                alert('La sincronización ANMAT ya fue completada anteriormente.');
+                actualizarBotonSync(gln);
+                return;
+            }
+            const desdeStr = state.desde || 'la fecha del primer error';
+            if (!confirm(`¿Sincronizar con ANMAT?\n\nSe traerán TODAS las transacciones ANMAT desde ${desdeStr} hasta hoy y se matchearán contra los registros locales pendientes/erróneos.\n\nUnico uso: si se corta, retoma automáticamente.`)) return;
+            setBotonesHabilitados(false);
+            try {
+                showLoading('Sincronizando con ANMAT...');
+                const url = `/api/reporte_errores?gln=${gln}`;
+                const response = await fetch(url, { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok) {
+                    alert('Error: ' + (data.error || 'Error desconocido'));
+                } else if (data.completa) {
+                    alert(`✓ Sincronización completada.\nCorregidos: ${data.corregidos || 0}\nNo encontrados: ${data.no_encontrados || 0}`);
+                } else if (data.error) {
+                    alert('Error: ' + data.error);
+                } else if (data.total === 0) {
+                    alert('No hay movimientos pendientes/erróneos para corregir.');
+                } else {
+                    const parcial = data.corregidos < data.total ? ' (parcial, retomar después)' : '';
+                    alert(`Resultados período ${data.periodo}:${parcial}\nTotal: ${data.total}\nCorregidos: ${data.corregidos || 0}\nNo encontrados: ${data.no_encontrados || 0}\nErrores: ${data.errores || 0}\nTx ANMAT: ${(data.txs_recibidas||0) + (data.txs_dispensadas||0)}`);
+                }
+                actualizarBotonSync(gln);
+                loadEventos();
+                loadStats();
+            } catch (e) {
+                alert('Error al sincronizar: ' + e);
+            }
+            hideLoading();
+            setBotonesHabilitados(true);
+        }
+
+        function showLoading(message = 'Cargando...') {
+            const indicator = document.getElementById('loadingIndicator');
+            document.getElementById('statusMessage').textContent = message;
+            indicator.classList.add('active');
+        }
+
+        function hideLoading() {
+            const indicator = document.getElementById('loadingIndicator');
+            indicator.classList.remove('active');
+        }
+
+        function updateLoadingStatus(message) {
+            document.getElementById('statusMessage').textContent = message;
+        }
+
+        async function loadGln() {
+            try {
+                updateLoadingStatus('Cargando sucursales...');
+                const response = await fetch('/api/sucursales/lista');
+                const data = await response.json();
+                const select = document.getElementById('glnSelect');
+
+                if (!data || !Array.isArray(data) || data.length === 0) {
+                    select.innerHTML = '<option value="">No hay sucursales</option>';
+                    return;
+                }
+
+                select.innerHTML = '<option value="">Todas las sucursales</option>';
+                    let primeraSucursal = null;
+                    data.forEach(suc => {
+                        const option = document.createElement('option');
+                        const gln = suc.gln || suc.GLN || '';
+                        const nombre = suc.sucursal || suc.SUCURSAL || 'Sucursal';
+                        option.value = gln;
+                        option.textContent = nombre + ' (' + gln + ')';
+                        if (!primeraSucursal) primeraSucursal = gln;
+                        if (gln === currentGln) option.selected = true;
+                        select.appendChild(option);
+                    });
+
+                // Si no hay sucursal seleccionada, seleccionar la primera
+                if (!currentGln && primeraSucursal) {
+                    select.value = primeraSucursal;
+                    currentGln = primeraSucursal;
+                    loadEventos();
+                    loadStats();
+                }
+            } catch (e) {
+                console.error('Error loading GLN:', e);
+                const select = document.getElementById('glnSelect');
+                select.innerHTML = '<option value="">Error al cargar</option>';
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const url = currentGln ? `/api/estadisticas?gln=${currentGln}` : '/api/estadisticas';
+                const response = await fetch(url);
+                const data = await response.json();
+                if (!data.error) {
+                    document.getElementById('cardRecepciones').textContent = data.ingresos_hoy ?? 0;
+                    document.getElementById('cardDispensas').textContent = data.egresos_hoy ?? 0;
+                    document.getElementById('cardPendientes').textContent = data.pendientes ?? 0;
+                    document.getElementById('cardErrores').textContent = data.con_error ?? 0;
+                    document.getElementById('ultimaActualizacion').textContent =
+                        new Date().toLocaleTimeString('es-ES');
+                }
+            } catch (e) {
+                console.error('Error loadStats:', e);
+            }
+        }
+
+        function changeGln() {
+            currentGln = document.getElementById('glnSelect').value;
+            actualizarBotonSync(currentGln);
+            loadEventos();
+            loadStats();
+            if (currentTab === 'no_confirmadas') {
+                loadNoConfirmadas();
+            }
+        }
+
+        async function loadNoConfirmadas() {
+            if (isLoading) return;
+            setBotonesHabilitados(false);
+            document.getElementById('btn-actualizar-nc').innerHTML = '<span class="loader"></span>Buscando...';
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 70000);
+            try {
+                showLoading('Buscando transacciones no confirmadas en ANMAT...');
+                const glnSelect = document.getElementById('glnSelect');
+                const gln = glnSelect ? glnSelect.value : null;
+                const url = gln ? `/api/anmat_no_confirmadas?gln=${gln}` : '/api/anmat_no_confirmadas';
+                const response = await fetch(url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                const data = await response.json();
+
+                const tbody = document.getElementById('noConfirmadasBody');
+                tbody.innerHTML = '';
+
+                const summary = document.getElementById('noConfirmadasSummary');
+                let summaryHtml = `<strong>Total: ${data.total || 0}</strong>`;
+                if (data.por_sucursal) {
+                    summaryHtml += ' <span style="color:#666;">(';
+                    summaryHtml += data.por_sucursal.map(s => `${s.sucursal}: ${s.total}`).join(', ');
+                    summaryHtml += ')</span>';
+                } else if (data.sucursal) {
+                    summaryHtml += ` <span style="color:#666;">(${data.sucursal})</span>`;
+                }
+                summary.innerHTML = summaryHtml;
+
+                if (data.error) {
+                    tbody.innerHTML = `<tr><td colspan="8" style="color:red;">Error: ${data.error}</td></tr>`;
+                } else if (data.transacciones && data.transacciones.length > 0) {
+                    if (data.auto_registradas > 0) {
+                        summaryHtml += ` — <span style="color:#10b981;font-weight:600;">${data.auto_registradas} registrada(s) automáticamente</span>`;
+                        summary.innerHTML = summaryHtml;
+                    }
+                    data.transacciones.forEach(row => {
+                        const tr = document.createElement('tr');
+                        if (row.auto_registrada) tr.style.background = '#f0fdf4';
+                        const proveedor = row.razon_social_origen || row.gln_origen || '-';
+                        const medicamento = row.nombre || '-';
+                        const txJson = JSON.stringify(row).replace(/"/g, '&quot;');
+                        const accion = `
+                            <button class="btn-action" style="background:#10b981;color:#fff;padding:3px 9px;border:none;border-radius:4px;cursor:pointer;margin-right:4px;font-size:0.82em;"
+                                onclick="abrirModalDecision(this)" data-tx="${txJson}">Confirmar</button>
+                            <button class="btn-action" style="background:#f59e0b;color:#fff;padding:3px 9px;border:none;border-radius:4px;cursor:pointer;font-size:0.82em;"
+                                onclick="abrirModalDecision(this)" data-tx="${txJson}">Alertar</button>
+                        `;
+                        tr.innerHTML = `
+                            <td>${row.fecha || '-'}</td>
+                            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${medicamento}">${medicamento}</td>
+                            <td>${row.gtin || '-'}</td>
+                            <td>${row.lote || '-'}</td>
+                            <td>${row.vencimiento || '-'}</td>
+                            <td>${row.numero_serial || '-'}</td>
+                            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${proveedor}">${proveedor}</td>
+                            <td style="white-space:nowrap;">${accion}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">No hay transacciones sin confirmar</td></tr>`;
+                }
+                hideLoading();
+                setBotonesHabilitados(true);
+                document.getElementById('btn-actualizar-nc').innerHTML = 'Actualizar';
+            } catch (e) {
+                clearTimeout(timeoutId);
+                console.error('Error:', e);
+                const tbody = document.getElementById('noConfirmadasBody');
+                tbody.innerHTML = `<tr><td colspan="7" style="color:red;">Error de conexión: ${e}</td></tr>`;
+                hideLoading();
+                setBotonesHabilitados(true);
+                document.getElementById('btn-actualizar-nc').innerHTML = 'Actualizar';
+            }
+        }
+
+        // --- Modal Confirmar / Alertar ---
+        let _decisionTx = null;
+
+        function abrirModalDecision(btn) {
+            const tx = JSON.parse(btn.getAttribute('data-tx').replace(/&quot;/g, '"'));
+            _decisionTx = tx;
+
+            const proveedor = tx.razon_social_origen || tx.gln_origen || '-';
+            const medicamento = tx.nombre || tx.gtin || '-';
+            const comprobante = tx.n_factura ? `Factura: ${tx.n_factura}` : (tx.n_remito ? `Remito: ${tx.n_remito}` : '-');
+
+            document.getElementById('modalDecisionInfo').innerHTML = `
+                <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;width:140px;">Proveedor</td><td><b>${proveedor}</b></td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Medicamento</td><td><b>${medicamento}</b></td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">GTIN</td><td>${tx.gtin || '-'}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Lote</td><td>${tx.lote || '-'}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Vencimiento</td><td>${tx.vencimiento || '-'}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Nro. Serie</td><td>${tx.numero_serial || '-'}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Fecha evento</td><td>${tx.fecha || '-'}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Comprobante</td><td>${comprobante}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">GLN Origen</td><td>${tx.gln_origen || '-'}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">GLN Destino</td><td>${tx.gln_destino || '-'}</td></tr>
+                  <tr><td style="color:#64748b;padding:2px 8px 2px 0;">ID Transacción</td><td style="font-family:monospace;">${tx.id_transaccion || '-'}</td></tr>
+                </table>
+            `;
+            document.getElementById('modalDecisionResult').style.display = 'none';
+            document.getElementById('modalDecision').style.display = 'flex';
+        }
+
+        function cerrarModalDecision() {
+            document.getElementById('modalDecision').style.display = 'none';
+            _decisionTx = null;
+        }
+
+        async function ejecutarConfirmar() {
+            if (!_decisionTx) return;
+            const gln = document.getElementById('glnSelect')?.value;
+            if (!gln) { alert('Seleccioná una sucursal primero'); return; }
+            _setModalBtnsEnabled(false);
+            const res = await _postDecision('/api/confirmar_transaccion', {
+                id_transaccion: _decisionTx.id_transaccion,
+                gln,
+                tx_data: _decisionTx,
+            });
+            _setModalBtnsEnabled(true);
+            _mostrarResultadoModal(res, 'Confirmar');
+        }
+
+        async function ejecutarAlertar() {
+            if (!_decisionTx) return;
+            const gln = document.getElementById('glnSelect')?.value;
+            if (!gln) { alert('Seleccioná una sucursal primero'); return; }
+            _setModalBtnsEnabled(false);
+            const res = await _postDecision('/api/alertar_transaccion', {
+                id_transaccion: _decisionTx.id_transaccion,
+                gln,
+            });
+            _setModalBtnsEnabled(true);
+            _mostrarResultadoModal(res, 'Alertar');
+        }
+
+        function _setModalBtnsEnabled(enabled) {
+            ['btnModalConfirmar', 'btnModalAlertar'].forEach(id => {
+                const b = document.getElementById(id);
+                if (b) { b.disabled = !enabled; b.style.opacity = enabled ? '1' : '0.5'; }
+            });
+        }
+
+        async function _postDecision(url, body) {
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                return await r.json();
+            } catch (e) {
+                return { success: false, error: String(e) };
+            }
+        }
+
+        function _mostrarResultadoModal(res, accion) {
+            const el = document.getElementById('modalDecisionResult');
+            el.style.display = 'block';
+            if (res.success) {
+                el.style.background = '#d1fae5';
+                el.style.color = '#065f46';
+                el.innerHTML = `✓ ${accion} ejecutado correctamente.`
+                    + (res.codigo_transaccion ? ` Código: <b>${res.codigo_transaccion}</b>` : '');
+                setTimeout(() => { cerrarModalDecision(); loadNoConfirmadas(); }, 1800);
+            } else {
+                el.style.background = '#fee2e2';
+                el.style.color = '#7f1d1d';
+                const msg = res.error || (res.errores || []).join('; ') || 'Error desconocido';
+                el.innerHTML = `✗ Error: ${msg}`;
+            }
+        }
+
+        async function testConnection() {
+            const status = document.getElementById('connectionStatus');
+            updateLoadingStatus('Probando conexión...');
+            showLoading();
+            status.textContent = 'Probando...';
+            status.className = 'status-badge';
+
+            try {
+                const response = await fetch('/api/probar_conexion');
+                const data = await response.json();
+
+                if (data.conectado) {
+                    status.textContent = 'Conectado ✓';
+                    status.className = 'status-badge status-connected';
+                } else {
+                    status.textContent = 'Error: ' + (data.error || 'Sin conexión');
+                    status.className = 'status-badge status-disconnected';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'status-badge status-disconnected';
+            }
+            hideLoading();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            showLoading('Inicializando...');
+            loadStats();
+            loadGln();
+            testConnection();
+            // Auto-refresh cada 2 minutos
+            setInterval(() => {
+                if (!isLoading) {
+                    loadEventos();
+                    loadStats();
+                }
+            }, 120000);
+        });
+
+        function consultarEventos() {
+            currentGln = document.getElementById('glnSelect').value;
+            loadEventos();
+        }
+
+        async function reportarMovimiento(movId) {
+            if (isLoading) return;
+            if (!confirm('¿Reportar este movimiento a ANMAT?')) return;
+
+            setBotonesHabilitados(false);
+            showLoading('Reportando movimiento...');
+            try {
+                const glnSelect = document.getElementById('glnSelect');
+                const gln = glnSelect ? glnSelect.value : null;
+                const url = gln
+                    ? `/api/reportar/${movId}?gln=${gln}`
+                    : `/api/reportar/${movId}`;
+                const response = await fetch(url, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Movimiento reportado correctamente');
+                    loadEventos();
+                } else {
+                    alert('Error: ' + (data.error || data.errores?.join(', ') || 'Error desconocido'));
+                    loadEventos(); // Recargar para ver el estado de error
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            hideLoading();
+            setBotonesHabilitados(true);
+        }
+
+        function abrirModalCorregir(movId, gtin, lote, serie, vencimiento) {
+            document.getElementById('fixMovId').value = movId;
+            document.getElementById('fixGtin').value = gtin;
+            document.getElementById('fixLote').value = lote;
+            document.getElementById('fixSerie').value = serie;
+            document.getElementById('fixVencimiento').value = vencimiento;
+            document.getElementById('modalCorregir').classList.add('active');
+        }
+
+        function cerrarModalCorregir() {
+            document.getElementById('modalCorregir').classList.remove('active');
+        }
+
+        async function guardarCorreccion() {
+            const movId = document.getElementById('fixMovId').value;
+            const gtin = document.getElementById('fixGtin').value;
+            const lote = document.getElementById('fixLote').value;
+            const serie = document.getElementById('fixSerie').value;
+            const vencimiento = document.getElementById('fixVencimiento').value;
+
+            showLoading('Corrigiendo y reenviando...');
+            try {
+                const url = currentGln
+                    ? `/api/subsanar/${movId}?gln=${currentGln}`
+                    : `/api/subsanar/${movId}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gtin, lote, numero_serial: serie, vencimiento })
+                });
+                const data = await response.json();
+
+                cerrarModalCorregir();
+                if (data.success) {
+                    alert('Movimiento corregido y reportado correctamente');
+                    loadEventos();
+                    if (currentGln) loadStats();
+                } else {
+                    alert('Error: ' + (data.error || data.errores || 'Error desconocido'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            hideLoading();
+        }
+
+        async function buscarComprobantes(gtin, lote, serie, fecha_desde) {
+            showLoading('Buscando comprobantes...');
+            try {
+                const params = new URLSearchParams();
+                const gtinClean = gtin ? gtin.replace(/^0+/, '') : '';
+                if (gtinClean) params.append('gtin', gtinClean);
+                if (lote) params.append('lote', lote);
+                if (serie) params.append('serie', serie);
+                if (fecha_desde) params.append('fecha_desde', fecha_desde);
+
+                // Usar OR si hay más de un criterio de búsqueda
+                const criterios = [gtinClean, lote, serie].filter(v => v);
+                if (criterios.length > 1) {
+                    params.append('usar_or', 'true');
+                }
+
+                const response = await fetch(`/api/buscar_comprobantes?${params}`);
+                const data = await response.json();
+
+                const tbody = document.getElementById('comprobantesBody');
+                tbody.innerHTML = '';
+
+                if (data.length > 0) {
+                    data.forEach(row => {
+                        const tieneTrazabilidad = row.CT_ID !== null;
+                        const estado = tieneTrazabilidad
+                            ? (row.ANMAT_TRANSACCION ? 'Reportado' : 'Pendiente')
+                            : 'Sin trazabilidad';
+                        const btnTexto = tieneTrazabilidad ? 'Actualizar y Reportar' : 'Sin datos';
+                        // Usar datos de la fila, o los originales si no hay registro de trazabilidad
+                        const loteFinal = tieneTrazabilidad ? (row.LOTE || '') : datosOriginales.lote;
+                        const serieFinal = tieneTrazabilidad ? (row.NRO_SERIE || '') : datosOriginales.serie;
+                        const caducidadFinal = tieneTrazabilidad ? (row.CADUCIDAD || '') : datosOriginales.vencimiento;
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${row.NOMBRE || '-'}</td>
+                            <td>${row.PTO_VTA || '-'}-${row.ID_CMP || '-'}</td>
+                            <td>${formatDate(row.FECHA_COMPROBANTE) || '-'}</td>
+                            <td>${row.GTIN || '-'}</td>
+                            <td>${row.CANTIDAD || '-'}</td>
+                            <td>${loteFinal || '-'}</td>
+                            <td>${serieFinal || '-'}</td>
+                            <td>${estado}</td>
+                            <td><button class="btn-action btn-fix" onclick="seleccionarComprobante(${row.CMP_RECIBIDO_ITEM_ID}, '${row.GTIN || ''}', '${loteFinal}', '${serieFinal}', '${caducidadFinal}')">${btnTexto}</button></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">No se encontraron comprobantes</td></tr>`;
+                }
+            } catch (e) {
+                console.error('Error:', e);
+            }
+            hideLoading();
+        }
+
+        function seleccionarComprobante(ctId, gtin, lote, serie, vencimiento) {
+            if (!confirm('¿Actualizar trazabilidad con estos datos y reportar a ANMAT?')) return;
+
+            setBotonesHabilitados(false);
+            showLoading('Actualizando y reportando...');
+
+            const glnSelect = document.getElementById('glnSelect');
+            const gln = glnSelect ? glnSelect.value : null;
+
+            fetch('/api/seleccionar_comprobante', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gln: gln,
+                    cmp_recibido_item_id: ctId,
+                    gtin: gtin.replace(/^0+/, ''),
+                    lote: lote,
+                    numero_serial: serie,
+                    vencimiento: vencimiento
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                cerrarModalComprobantes();
+                if (data.success) {
+                    alert('Trazabilidad actualizada y reportada correctamente');
+                    loadNoConfirmadas();
+                    loadEventos();
+                } else {
+                    alert('Error: ' + (data.error || 'Error desconocido'));
+                }
+            })
+            .catch(e => {
+                alert('Error: ' + e);
+            })
+            .finally(() => {
+                hideLoading();
+                setBotonesHabilitados(true);
+            });
+        }
+
+        function normalizarFechaAnmat(fecha) {
+            if (!fecha) return '';
+            const s = fecha.trim().split(' ')[0];
+            if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+            if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) { const [d,m,y] = s.split('.'); return `${y}-${m}-${d}`; }
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) { const [d,m,y] = s.split('/'); return `${y}-${m}-${d}`; }
+            return '';
+        }
+
+        function abrirModalComprobantes(gtin, lote, serie, fecha, vencimiento) {
+            datosOriginales = {
+                gtin: gtin || '',
+                lote: lote || '',
+                serie: serie || '',
+                fecha: fecha || '',
+                vencimiento: vencimiento || ''
+            };
+            document.getElementById('searchGtin').value = gtin ? gtin.replace(/^0+/, '') : '';
+            document.getElementById('searchLote').value = lote || '';
+            document.getElementById('searchSerie').value = serie || '';
+            document.getElementById('searchFecha').value = normalizarFechaAnmat(fecha);
+            document.getElementById('modalComprobantes').classList.add('active');
+            // No pasar fecha_desde: el comprobante puede ser más antiguo que el evento ANMAT
+            buscarComprobantes(gtin ? gtin.replace(/^0+/, '') : '', lote, serie, null);
+        }
+
+        function cerrarModalComprobantes() {
+            document.getElementById('modalComprobantes').classList.remove('active');
+        }
+
+        async function buscarTransaccionesAnmat() {
+            const btn = document.getElementById('btn-buscar-anmat');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span>Buscando...';
+
+            const glnSelect = document.getElementById('glnSelect');
+            const gln = glnSelect ? glnSelect.value : null;
+
+            const params = new URLSearchParams();
+            if (gln) params.append('gln', gln);
+
+            const gtin = document.getElementById('searchGtinAnmat').value.trim();
+            const serie = document.getElementById('searchSerieAnmat').value.trim();
+            const glnOrigen = document.getElementById('searchGlnOrigen').value.trim();
+            const glnDestino = document.getElementById('searchGlnDestino').value.trim();
+            const evento = document.getElementById('searchEvento').value;
+            const fechaDesde = document.getElementById('searchFechaDesde').value.trim();
+            const fechaHasta = document.getElementById('searchFechaHasta').value.trim();
+            const remito = document.getElementById('searchRemito').value.trim();
+            const factura = document.getElementById('searchFactura').value.trim();
+
+            if (gtin) params.append('gtin', gtin);
+            if (serie) params.append('serie', serie);
+            if (glnOrigen) params.append('gln_origen', glnOrigen);
+            if (glnDestino) params.append('gln_destino', glnDestino);
+            if (evento) params.append('id_evento', evento);
+            if (fechaDesde) params.append('fecha_desde', fechaDesde);
+            if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+            if (remito) params.append('n_remito', remito);
+            if (factura) params.append('n_factura', factura);
+
+            try {
+                showLoading('Buscando transacciones en ANMAT...');
+                const response = await fetch(`/api/anmat_transacciones?${params}`);
+                const data = await response.json();
+
+                const tbody = document.getElementById('buscarAnmatBody');
+                const summary = document.getElementById('buscarAnmatSummary');
+                const errorDiv = document.getElementById('buscarAnmatError');
+
+                tbody.innerHTML = '';
+                errorDiv.style.display = 'none';
+
+                if (data.error) {
+                    errorDiv.textContent = 'Error: ' + data.error;
+                    errorDiv.style.display = 'block';
+                    summary.style.display = 'none';
+                } else if (data.transacciones && data.transacciones.length > 0) {
+                    summary.textContent = `Se encontraron ${data.total} transacción(es)`;
+                    summary.style.display = 'block';
+
+                    data.transacciones.forEach(row => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${row.id_transaccion || '-'}</td>
+                            <td>${row.fecha || '-'}</td>
+                            <td>${row.gtin || '-'}</td>
+                            <td>${row.lote || '-'}</td>
+                            <td>${row.vencimiento || '-'}</td>
+                            <td>${row.numero_serial || '-'}</td>
+                            <td>${row.gln_origen || '-'}</td>
+                            <td>${row.gln_destino || '-'}</td>
+                            <td>${row.codigo_transaccion || '-'}</td>
+                            <td>${row.id_estado || '-'}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    summary.textContent = 'No se encontraron transacciones con los filtros especificados';
+                    summary.style.display = 'block';
+                }
+            } catch (e) {
+                const errorDiv = document.getElementById('buscarAnmatError');
+                errorDiv.textContent = 'Error de conexión: ' + e.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                hideLoading();
+                btn.disabled = false;
+                btn.innerHTML = 'Buscar';
+            }
+        }
+
+        function limpiarBusquedaAnmat() {
+            document.getElementById('searchGtinAnmat').value = '';
+            document.getElementById('searchSerieAnmat').value = '';
+            document.getElementById('searchGlnOrigen').value = '';
+            document.getElementById('searchGlnDestino').value = '';
+            document.getElementById('searchEvento').value = '';
+            document.getElementById('searchFechaDesde').value = '';
+            document.getElementById('searchFechaHasta').value = '';
+            document.getElementById('searchRemito').value = '';
+            document.getElementById('searchFactura').value = '';
+
+            document.getElementById('buscarAnmatBody').innerHTML = '';
+            document.getElementById('buscarAnmatSummary').style.display = 'none';
+            document.getElementById('buscarAnmatError').style.display = 'none';
+        }
+        // --- Conciliación ---
+        let _conciliarTx = null;
+        let _conciliarData = [];
+
+        function badgeMatch(estado) {
+            const map = {
+                'match_exacto': '<span class="badge badge-success" style="cursor:default;">✅ Exacto</span>',
+                'match_parcial': '<span class="badge badge-pending" style="cursor:default;background:#fef3c7;color:#92400e;">⚠️ Parcial</span>',
+                'match_debil': '<span class="badge badge-pending" style="cursor:default;background:#dbeafe;color:#1e40af;">🔍 Débil</span>',
+                'sin_match': '<span class="badge badge-error" style="cursor:default;">❌ Sin match</span>',
+            };
+            return map[estado] || estado;
+        }
+
+        async function loadConciliar() {
+            if (isLoading) return;
+            setBotonesHabilitados(false);
+            const btn = document.getElementById('btn-actualizar-conciliar');
+            if (btn) btn.innerHTML = '<span class="loader"></span>Buscando...';
+            try {
+                showLoading('Buscando transacciones pendientes con matching...');
+                const gln = document.getElementById('glnSelect')?.value;
+                const url = gln ? `/api/conciliar/pendientes?gln=${gln}` : '/api/conciliar/pendientes';
+                const res = await fetch(url);
+                const data = await res.json();
+
+                _conciliarData = data.transacciones || [];
+
+                // Resumen
+                const resumen = data.resumen || {};
+                document.getElementById('countExacto').textContent = resumen.match_exacto ?? 0;
+                document.getElementById('countParcial').textContent = resumen.match_parcial ?? 0;
+                document.getElementById('countDebil').textContent = resumen.match_debil ?? 0;
+                document.getElementById('countSinMatch').textContent = resumen.sin_match ?? 0;
+
+                const tbody = document.getElementById('conciliarBody');
+                tbody.innerHTML = '';
+
+                if (data.error) {
+                    tbody.innerHTML = `<tr><td colspan="10" style="color:red;">Error: ${data.error}</td></tr>`;
+                } else if (_conciliarData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No hay transacciones pendientes de conciliar</td></tr>`;
+                } else {
+                    _conciliarData.forEach(tx => {
+                        const tr = document.createElement('tr');
+                        const matching = tx.matching || {};
+                        const estado = matching.estado || 'sin_match';
+                        const proveedor = tx.razon_social_origen || tx.gln_origen || '-';
+                        const producto = tx.nombre || '-';
+                        const nroComp = tx.n_factura || tx.n_remito || '-';
+                        const txJson = JSON.stringify(tx).replace(/"/g, '&quot;');
+
+                        const btnAccion = estado === 'match_exacto'
+                            ? `<button class="btn-action btn-search" onclick="confirmarTxConciliar(this)" data-tx="${txJson}">✓ Confirmar</button>`
+                            : `<button class="btn-action btn-fix" onclick="abrirModalConciliar(this)" data-tx="${txJson}">🔍 Conciliar</button>`;
+
+                        tr.innerHTML = `
+                            <td>${tx.fecha || '-'}</td>
+                            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${proveedor}">${proveedor}</td>
+                            <td>${tx.gtin || '-'}</td>
+                            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${producto}">${producto}</td>
+                            <td>${tx.lote || '-'}</td>
+                            <td>${tx.vencimiento || '-'}</td>
+                            <td>${tx.numero_serial || '-'}</td>
+                            <td>${nroComp}</td>
+                            <td>${badgeMatch(estado)}</td>
+                            <td style="white-space:nowrap;">${btnAccion}</td>
+                        `;
+                        if (estado === 'match_exacto') tr.style.background = '#f0fdf4';
+                        tbody.appendChild(tr);
+                    });
+                }
+                hideLoading();
+            } catch (e) {
+                console.error('Error conciliar:', e);
+                document.getElementById('conciliarBody').innerHTML = `<tr><td colspan="10" style="color:red;">Error: ${e.message}</td></tr>`;
+                hideLoading();
+            }
+            setBotonesHabilitados(true);
+            if (btn) btn.innerHTML = 'Actualizar';
+        }
+
+        async function confirmarTxConciliar(btn) {
+            const tx = JSON.parse(btn.getAttribute('data-tx').replace(/&quot;/g, '"'));
+            const matching = tx.matching || {};
+            const candidato = matching.seleccionado || (matching.candidatos || [])[0];
+            if (!candidato) { alert('No hay candidato para confirmar'); return; }
+
+            const gln = document.getElementById('glnSelect')?.value;
+            if (!gln) { alert('Seleccioná una sucursal'); return; }
+
+            if (!confirm(`¿Confirmar recepción de ${tx.gtin || '?'} con comprobante #${candidato.cmp_recibido_id || '?'}?`)) return;
+
+            setBotonesHabilitados(false);
+            try {
+                const res = await fetch('/api/confirmar_transaccion', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id_transaccion: tx.id_transaccion,
+                        gln: gln,
+                        tx_data: {...tx, cmp_recibido_item_id: candidato.cmp_recibido_item_id},
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✓ Transacción confirmada. Código: ${data.codigo_transaccion || 'OK'}`);
+                    loadConciliar();
+                } else {
+                    alert('✗ Error: ' + (data.error || data.errores?.join(', ') || 'desconocido'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            setBotonesHabilitados(true);
+        }
+
+        // --- Modal Conciliación ---
+        function abrirModalConciliar(btn) {
+            _conciliarTx = JSON.parse(btn.getAttribute('data-tx').replace(/&quot;/g, '"'));
+            const tx = _conciliarTx;
+            const matching = tx.matching || {};
+            const candidatos = matching.candidatos || [];
+
+            // Info de la transacción
+            document.getElementById('modalConciliarInfo').innerHTML = `
+                <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;width:140px;">Proveedor</td><td><b>${tx.razon_social_origen || tx.gln_origen || '-'}</b></td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Producto</td><td>${tx.nombre || '-'}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">GTIN</td><td>${tx.gtin || '-'}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Lote</td><td>${tx.lote || '-'}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Vencimiento</td><td>${tx.vencimiento || '-'}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Nro. Serie</td><td>${tx.numero_serial || '-'}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Fecha evento</td><td>${tx.fecha || '-'}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Factura/Remito</td><td>${tx.n_factura || tx.n_remito || '-'}</td></tr>
+                    <tr><td style="color:#64748b;padding:2px 8px 2px 0;">Estado Match</td><td>${badgeMatch(matching.estado || 'sin_match')}</td></tr>
+                </table>
+            `;
+
+            // Candidatos
+            const container = document.getElementById('modalCandidatosBody');
+            container.innerHTML = '';
+            if (candidatos.length === 0) {
+                container.innerHTML = '<p style="color:#888;font-style:italic;">No se encontraron comprobantes candidatos automáticamente. Usá la búsqueda manual.</p>';
+            } else {
+                const table = document.createElement('table');
+                table.innerHTML = `
+                    <thead><tr>
+                        <th>Comprobante</th>
+                        <th>Proveedor</th>
+                        <th>Fecha</th>
+                        <th>GTIN</th>
+                        <th>Lote</th>
+                        <th>Score</th>
+                        <th>Acción</th>
+                    </tr></thead>
+                    <tbody id="mcCandidatosBody"></tbody>
+                `;
+                const tb = table.querySelector('tbody');
+                candidatos.forEach(c => {
+                    const scoreClass = c._match_score >= 100 ? 'badge-success' : c._match_score >= 60 ? 'badge-pending' : 'badge-error';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${c.pto_vta || ''}-${c.id_cmp || ''}</td>
+                        <td>${c.proveedor || '-'}</td>
+                        <td>${c.fecha_comprobante || '-'}</td>
+                        <td>${c.gtin || '-'}</td>
+                        <td>${c.lote || '-'}</td>
+                        <td><span class="badge ${scoreClass}">${c._match_score || 0}</span></td>
+                        <td><button class="btn-action btn-search" onclick="seleccionarCandidatoConciliar(${c.cmp_recibido_item_id})">Seleccionar</button></td>
+                    `;
+                    tb.appendChild(tr);
+                });
+                container.appendChild(table);
+            }
+
+            document.getElementById('modalConciliarResult').style.display = 'none';
+            document.getElementById('modalConciliar').classList.add('active');
+        }
+
+        function cerrarModalConciliar() {
+            document.getElementById('modalConciliar').classList.remove('active');
+            _conciliarTx = null;
+            document.getElementById('modalBuscarResult').innerHTML = '';
+        }
+
+        async function seleccionarCandidatoConciliar(cmpItemId) {
+            if (!_conciliarTx) return;
+            const gln = document.getElementById('glnSelect')?.value;
+            if (!gln) { alert('Seleccioná una sucursal'); return; }
+            if (!confirm('¿Confirmar recepción usando este comprobante?')) return;
+
+            try {
+                const res = await fetch('/api/confirmar_transaccion', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id_transaccion: _conciliarTx.id_transaccion,
+                        gln: gln,
+                        tx_data: {..._conciliarTx, cmp_recibido_item_id: cmpItemId},
+                    })
+                });
+                const data = await res.json();
+                const resultDiv = document.getElementById('modalConciliarResult');
+                resultDiv.style.display = 'block';
+                if (data.success) {
+                    resultDiv.style.background = '#d1fae5';
+                    resultDiv.style.color = '#065f46';
+                    resultDiv.innerHTML = `✓ Transacción confirmada. Código: <b>${data.codigo_transaccion || 'OK'}</b>`;
+                    setTimeout(() => { cerrarModalConciliar(); loadConciliar(); }, 1500);
+                } else {
+                    resultDiv.style.background = '#fee2e2';
+                    resultDiv.style.color = '#7f1d1d';
+                    resultDiv.innerHTML = '✗ Error: ' + (data.error || data.errores?.join('; ') || 'desconocido');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function buscarComprobantesConciliar() {
+            if (!_conciliarTx) return;
+            const gtin = document.getElementById('mcGtin').value.trim() || _conciliarTx.gtin || '';
+            const nFactura = document.getElementById('mcFactura').value.trim() || _conciliarTx.n_factura || '';
+            const nRemito = document.getElementById('mcRemito').value.trim() || _conciliarTx.n_remito || '';
+            const fechaDesde = document.getElementById('mcFechaDesde').value || '';
+            const fechaHasta = document.getElementById('mcFechaHasta').value || '';
+
+            const params = new URLSearchParams();
+            if (gtin) params.append('gtin', gtin.replace(/^0+/, ''));
+            if (nFactura) params.append('n_factura', nFactura);
+            if (nRemito) params.append('n_remito', nRemito);
+            if (fechaDesde) params.append('fecha_desde', fechaDesde);
+            if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+
+            const gln = document.getElementById('glnSelect')?.value;
+            if (gln) params.append('gln_sucursal', gln);
+
+            try {
+                const res = await fetch(`/api/conciliar/comprobantes?${params}`);
+                const data = await res.json();
+                const container = document.getElementById('modalBuscarResult');
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    container.innerHTML = '<p style="color:#888;font-style:italic;">No se encontraron comprobantes</p>';
+                    return;
+                }
+
+                let html = '<table style="font-size:12px;"><thead><tr><th>Comprobante</th><th>Proveedor</th><th>Fecha</th><th>GTIN</th><th>Lote</th><th>Estado</th><th>Acción</th></tr></thead><tbody>';
+                data.forEach(c => {
+                    const estado = c.anmat_transaccion ? 'Reportado' : (c.ctm_id ? 'Pendiente' : 'Sin trazabilidad');
+                    html += `<tr>
+                        <td>${c.pto_vta || ''}-${c.id_cmp || ''}</td>
+                        <td>${c.proveedor || '-'}</td>
+                        <td>${c.fecha_comprobante || '-'}</td>
+                        <td>${c.gtin || '-'}</td>
+                        <td>${c.lote || '-'}</td>
+                        <td>${estado}</td>
+                        <td><button class="btn-action btn-search" onclick="seleccionarCandidatoConciliar(${c.cmp_recibido_item_id})">Seleccionar</button></td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (e) {
+                document.getElementById('modalBuscarResult').innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
+            }
+        }
+
+        async function confirmarMatchExactos() {
+            const exactos = _conciliarData.filter(tx =>
+                tx.matching?.estado === 'match_exacto' && tx.matching?.seleccionado
+            );
+            if (exactos.length === 0) {
+                alert('No hay transacciones con match exacto para confirmar.');
+                return;
+            }
+            if (!confirm(`¿Confirmar ${exactos.length} transacción(es) con match exacto?`)) return;
+
+            const gln = document.getElementById('glnSelect')?.value;
+            if (!gln) { alert('Seleccioná una sucursal'); return; }
+
+            setBotonesHabilitados(false);
+            document.getElementById('conciliarStatus').textContent = `Confirmando ${exactos.length} transacciones...`;
+
+            let ok = 0, err = 0;
+            for (const tx of exactos) {
+                const candidato = tx.matching.seleccionado;
+                try {
+                    const res = await fetch('/api/confirmar_transaccion', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            id_transaccion: tx.id_transaccion,
+                            gln: gln,
+                            tx_data: {...tx, cmp_recibido_item_id: candidato.cmp_recibido_item_id},
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) ok++; else err++;
+                } catch (e) {
+                    err++;
+                }
+            }
+            document.getElementById('conciliarStatus').textContent = '';
+            alert(`Resultados: ${ok} confirmadas, ${err} errores`);
+            loadConciliar();
+            setBotonesHabilitados(true);
+        }
+    </script>
+
+    <!-- Modal Corregir -->
+    <div id="modalCorregir" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Corregir Datos de Trazabilidad</h3>
+                <button class="modal-close" onclick="cerrarModalCorregir()">&times;</button>
+            </div>
+            <input type="hidden" id="fixMovId">
+            <div class="form-group">
+                <label>GTIN</label>
+                <input type="text" id="fixGtin">
+            </div>
+            <div class="form-group">
+                <label>Lote</label>
+                <input type="text" id="fixLote">
+            </div>
+            <div class="form-group">
+                <label>Número de Serie</label>
+                <input type="text" id="fixSerie">
+            </div>
+            <div class="form-group">
+                <label>Vencimiento</label>
+                <input type="date" id="fixVencimiento">
+            </div>
+            <button class="btn-reporte" onclick="guardarCorreccion()">Guardar y Reportar</button>
+        </div>
+    </div>
+
+    <!-- Modal Buscar Comprobantes -->
+    <div id="modalComprobantes" class="modal" style="max-width: 95%;">
+        <div class="modal-content" style="max-width: 100%; width: 100%; max-height: 90vh; overflow: auto;">
+            <div class="modal-header">
+                <h3>Buscar en Comprobantes Recibidos</h3>
+                <button class="modal-close" onclick="cerrarModalComprobantes()">&times;</button>
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="searchGtin" placeholder="GTIN" style="flex: 1; padding: 8px; border: 1px solid #ddd;">
+                <input type="text" id="searchLote" placeholder="Lote" style="flex: 1; padding: 8px; border: 1px solid #ddd;">
+                <input type="text" id="searchSerie" placeholder="Serie" style="flex: 1; padding: 8px; border: 1px solid #ddd;">
+                <input type="date" id="searchFecha" placeholder="Fecha Desde" style="flex: 1; padding: 8px; border: 1px solid #ddd;">
+                <button class="btn-reporte" onclick="buscarComprobantes(
+                    document.getElementById('searchGtin').value,
+                    document.getElementById('searchLote').value,
+                    document.getElementById('searchSerie').value,
+                    document.getElementById('searchFecha').value
+                )">Buscar</button>
+            </div>
+            <table style="font-size: 12px;">
+                <thead>
+                    <tr>
+                        <th>Proveedor</th>
+                        <th>Comprobante</th>
+                        <th>Fecha</th>
+                        <th>GTIN</th>
+                        <th>Cantidad</th>
+                        <th>Lote</th>
+                        <th>Serie</th>
+                        <th>Estado</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="comprobantesBody"></tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,14 @@
+.env
+privada.key
+pedido.csr
+venv/
+__pycache__/
+*.pyc
+*.pyo
+pyafipws/cache/*.pkl
+anmat_sync_state.json
+*.log*
+*.log.*
+.DS_Store
+.cache/
+*.pdf

@@ -460,7 +460,7 @@
             <button id="tab-eventos" class="tab active" onclick="showTab('eventos')">Eventos</button>
             <button id="tab-no-confirmadas" class="tab" onclick="showTab('no_confirmadas')">No Confirmadas ANMAT</button>
             <button id="tab-buscar-anmat" class="tab" onclick="showTab('buscar_anmat')">Buscar Transacciones ANMAT</button>
-            <button id="tab-conciliar" class="tab" onclick="showTab('conciliar')">Conciliación</button>
+            <button id="tab-conciliar" class="tab" onclick="showTab('conciliar')" style="display:none;">Conciliación</button>
         </div>
 
         <div id="eventosTable" class="table-container active" style="display:flex;flex-direction:column;flex:1;min-height:0;">
@@ -529,6 +529,7 @@
                         <th>VENC.</th>
                         <th>NRO SERIE</th>
                         <th>PROVEEDOR</th>
+                        <th>MATCH</th>
                         <th>ACCIÓN</th>
                     </tr>
                 </thead>
@@ -537,18 +538,39 @@
             </div>
         </div>
 
-        <!-- Modal de decisión para transacciones no confirmadas -->
-        <div id="modalDecision" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:2000; align-items:center; justify-content:center;">
-          <div style="background:#fff; border-radius:10px; padding:28px; max-width:640px; width:92%; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
-            <h3 style="margin-top:0; color:#1e293b;">Decisión sobre Transacción</h3>
-            <div id="modalDecisionInfo" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:14px; margin-bottom:18px; font-size:0.9em; line-height:1.7;"></div>
-            <p style="color:#64748b; font-size:0.85em; margin-bottom:14px;">Seleccioná una acción. La confirmación creará el comprobante local si no existe.</p>
-            <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+        <!-- Modal de decisión para transacciones no confirmadas (con selección de comprobante) -->
+        <div id="modalDecision" class="modal">
+          <div class="modal-content" style="max-width:900px;">
+            <div class="modal-header">
+              <h3>Confirmar Transacción</h3>
+              <button class="modal-close" onclick="cerrarModalDecision()">&times;</button>
+            </div>
+            <div id="modalDecisionInfo" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:16px;font-size:0.9em;line-height:1.7;"></div>
+
+            <div id="modalDecisionCandidatos">
+              <h4 style="margin-bottom:10px;">Comprobantes locales disponibles</h4>
+              <div id="modalCandidatosBody" style="max-height:260px;overflow-y:auto;"></div>
+            </div>
+
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;">
+              <h4 style="margin-bottom:10px;">Buscar otro comprobante</h4>
+              <div class="form-row">
+                <div class="form-group small"><label>GTIN</label><input type="text" id="mcGtin" placeholder="GTIN"></div>
+                <div class="form-group small"><label>N° Factura</label><input type="text" id="mcFactura" placeholder="Ej: A001-1"></div>
+                <div class="form-group small"><label>N° Remito</label><input type="text" id="mcRemito" placeholder="Remito"></div>
+                <div class="form-group small"><label>Fecha Desde</label><input type="date" id="mcFechaDesde"></div>
+                <div class="form-group small"><label>Fecha Hasta</label><input type="date" id="mcFechaHasta"></div>
+              </div>
+              <button class="btn-reporte" onclick="buscarComprobantesDecision()" style="margin-top:8px;">Buscar</button>
+              <div id="modalBuscarResult" style="margin-top:10px;"></div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
               <button id="btnModalConfirmar" class="btn-reporte" style="background:#10b981;" onclick="ejecutarConfirmar()">✓ Confirmar recepción</button>
               <button id="btnModalAlertar" class="btn-reporte" style="background:#f59e0b;" onclick="ejecutarAlertar()">⚠ Alertar anomalía</button>
-              <button class="btn-reporte" style="background:#6b7280; margin-left:auto;" onclick="cerrarModalDecision()">Cerrar</button>
+              <button class="btn-reporte" style="background:#6b7280;margin-left:auto;" onclick="cerrarModalDecision()">Cerrar</button>
             </div>
-            <div id="modalDecisionResult" style="display:none; padding:12px; border-radius:6px; margin-top:10px; font-weight:500;"></div>
+            <div id="modalDecisionResult" style="display:none;padding:12px;border-radius:6px;margin-top:12px;font-weight:500;"></div>
           </div>
         </div>
 
@@ -830,7 +852,7 @@
 
         function setBotonesHabilitados(habilitados) {
             isLoading = !habilitados;
-            const ids = ['btn-actualizar', 'btn-reportar', 'btn-reportar-errores', 'btn-actualizar-nc'];
+            const ids = ['btn-actualizar', 'btn-reportar', 'btn-reportar-errores', 'btn-actualizar-nc', 'btn-actualizar-conciliar'];
             ids.forEach(id => {
                 const btn = document.getElementById(id);
                 if (!btn) return;
@@ -884,16 +906,16 @@
         function showTab(tab) {
             currentTab = tab;
 
-            // Quitar active de todos
+            // Quitar active de todos (tabs y tablas)
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.table-container').forEach(t => {
                 t.classList.remove('active');
                 t.classList.remove('flex');
+                t.style.display = 'none';
             });
 
-            // Buscar elementos por ID
+            // Mostrar el tab activo
             const tabEl = document.getElementById('tab-' + tab.replace('_', '-'));
-            // Mapear nombres de tabs a IDs de tablas
             const tableIds = {
                 'eventos': 'eventosTable',
                 'no_confirmadas': 'noConfirmadasTable',
@@ -904,8 +926,10 @@
 
             if (tabEl) tabEl.classList.add('active');
             if (tableEl) {
+                tableEl.style.display = '';
                 tableEl.classList.add('active');
                 if (tab === 'eventos' || tab === 'no_confirmadas' || tab === 'conciliar') {
+                    tableEl.style.display = 'flex';
                     tableEl.classList.add('flex');
                 }
             }
@@ -918,7 +942,6 @@
             } else if (tab === 'conciliar') {
                 loadConciliar();
             }
-            // buscar_anmat no necesita cargar datos al inicio
         }
 
         async function loadEventos() {
@@ -1220,6 +1243,16 @@
             }
         }
 
+        function badgeMatch(estado) {
+            const map = {
+                'match_exacto': '<span class="badge badge-success" style="cursor:default;">✓ Exacto</span>',
+                'match_parcial': '<span class="badge badge-pending" style="cursor:default;background:#fef3c7;color:#92400e;">△ Parcial</span>',
+                'match_debil': '<span class="badge badge-pending" style="cursor:default;background:#dbeafe;color:#1e40af;">○ Débil</span>',
+                'sin_match': '<span class="badge badge-error" style="cursor:default;">✗ Sin match</span>',
+            };
+            return map[estado] || estado;
+        }
+
         async function loadNoConfirmadas() {
             if (isLoading) return;
             setBotonesHabilitados(false);
@@ -1228,9 +1261,8 @@
             const timeoutId = setTimeout(() => controller.abort(), 70000);
             try {
                 showLoading('Buscando transacciones no confirmadas en ANMAT...');
-                const glnSelect = document.getElementById('glnSelect');
-                const gln = glnSelect ? glnSelect.value : null;
-                const url = gln ? `/api/anmat_no_confirmadas?gln=${gln}` : '/api/anmat_no_confirmadas';
+                const gln = document.getElementById('glnSelect')?.value;
+                const url = gln ? `/api/conciliar/pendientes?gln=${gln}` : '/api/conciliar/pendientes';
                 const response = await fetch(url, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 const data = await response.json();
@@ -1239,49 +1271,48 @@
                 tbody.innerHTML = '';
 
                 const summary = document.getElementById('noConfirmadasSummary');
-                let summaryHtml = `<strong>Total: ${data.total || 0}</strong>`;
-                if (data.por_sucursal) {
-                    summaryHtml += ' <span style="color:#666;">(';
-                    summaryHtml += data.por_sucursal.map(s => `${s.sucursal}: ${s.total}`).join(', ');
-                    summaryHtml += ')</span>';
-                } else if (data.sucursal) {
-                    summaryHtml += ` <span style="color:#666;">(${data.sucursal})</span>`;
-                }
+                const resumen = data.resumen || {};
+                const total = data.total || 0;
+                let summaryHtml = `<strong>Total: ${total}</strong>`;
+                if (resumen.match_exacto > 0) summaryHtml += ` · ✓ ${resumen.match_exacto} exactos`;
+                if (resumen.match_parcial > 0) summaryHtml += ` · △ ${resumen.match_parcial} parciales`;
+                if (resumen.sin_match > 0) summaryHtml += ` · ✗ ${resumen.sin_match} sin match`;
                 summary.innerHTML = summaryHtml;
 
                 if (data.error) {
-                    tbody.innerHTML = `<tr><td colspan="8" style="color:red;">Error: ${data.error}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="9" style="color:red;">Error: ${data.error}</td></tr>`;
                 } else if (data.transacciones && data.transacciones.length > 0) {
-                    if (data.auto_registradas > 0) {
-                        summaryHtml += ` — <span style="color:#10b981;font-weight:600;">${data.auto_registradas} registrada(s) automáticamente</span>`;
-                        summary.innerHTML = summaryHtml;
-                    }
                     data.transacciones.forEach(row => {
                         const tr = document.createElement('tr');
-                        if (row.auto_registrada) tr.style.background = '#f0fdf4';
+                        const matching = row.matching || {};
+                        const estado = matching.estado || 'sin_match';
+                        if (estado === 'match_exacto') tr.style.background = '#f0fdf4';
                         const proveedor = row.razon_social_origen || row.gln_origen || '-';
                         const medicamento = row.nombre || '-';
+                        const nroComp = row.n_factura || row.n_remito || '-';
                         const txJson = JSON.stringify(row).replace(/"/g, '&quot;');
-                        const accion = `
-                            <button class="btn-action" style="background:#10b981;color:#fff;padding:3px 9px;border:none;border-radius:4px;cursor:pointer;margin-right:4px;font-size:0.82em;"
-                                onclick="abrirModalDecision(this)" data-tx="${txJson}">Confirmar</button>
-                            <button class="btn-action" style="background:#f59e0b;color:#fff;padding:3px 9px;border:none;border-radius:4px;cursor:pointer;font-size:0.82em;"
-                                onclick="abrirModalDecision(this)" data-tx="${txJson}">Alertar</button>
-                        `;
+                        const accion = estado === 'match_exacto'
+                            ? `<button class="btn-action btn-search" onclick="abrirModalDecision(this)" data-tx="${txJson}">✓ Confirmar</button>
+                               <button class="btn-action" style="background:#f59e0b;color:#fff;padding:3px 7px;border:none;border-radius:4px;cursor:pointer;font-size:0.82em;"
+                                onclick="alertarTransaccion(this)" data-tx="${txJson}">Alertar</button>`
+                            : `<button class="btn-action btn-fix" onclick="abrirModalDecision(this)" data-tx="${txJson}">🔍 Confirmar</button>
+                               <button class="btn-action" style="background:#f59e0b;color:#fff;padding:3px 7px;border:none;border-radius:4px;cursor:pointer;font-size:0.82em;"
+                                onclick="alertarTransaccion(this)" data-tx="${txJson}">Alertar</button>`;
                         tr.innerHTML = `
                             <td>${row.fecha || '-'}</td>
-                            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${medicamento}">${medicamento}</td>
+                            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${medicamento}">${medicamento}</td>
                             <td>${row.gtin || '-'}</td>
                             <td>${row.lote || '-'}</td>
                             <td>${row.vencimiento || '-'}</td>
                             <td>${row.numero_serial || '-'}</td>
-                            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${proveedor}">${proveedor}</td>
+                            <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${proveedor}">${proveedor}</td>
+                            <td>${badgeMatch(estado)}</td>
                             <td style="white-space:nowrap;">${accion}</td>
                         `;
                         tbody.appendChild(tr);
                     });
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">No hay transacciones sin confirmar</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">No hay transacciones sin confirmar</td></tr>`;
                 }
                 hideLoading();
                 setBotonesHabilitados(true);
@@ -1290,19 +1321,21 @@
                 clearTimeout(timeoutId);
                 console.error('Error:', e);
                 const tbody = document.getElementById('noConfirmadasBody');
-                tbody.innerHTML = `<tr><td colspan="7" style="color:red;">Error de conexión: ${e}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="color:red;">Error de conexión: ${e}</td></tr>`;
                 hideLoading();
                 setBotonesHabilitados(true);
                 document.getElementById('btn-actualizar-nc').innerHTML = 'Actualizar';
             }
         }
 
-        // --- Modal Confirmar / Alertar ---
+        // --- Modal Confirmar / Alertar con selección de comprobante ---
         let _decisionTx = null;
+        let _selectedCmpItemId = null;
 
         function abrirModalDecision(btn) {
             const tx = JSON.parse(btn.getAttribute('data-tx').replace(/&quot;/g, '"'));
             _decisionTx = tx;
+            _selectedCmpItemId = null;
 
             const proveedor = tx.razon_social_origen || tx.gln_origen || '-';
             const medicamento = tx.nombre || tx.gtin || '-';
@@ -1323,13 +1356,73 @@
                   <tr><td style="color:#64748b;padding:2px 8px 2px 0;">ID Transacción</td><td style="font-family:monospace;">${tx.id_transaccion || '-'}</td></tr>
                 </table>
             `;
+
+            // Mostrar candidatos automáticos
+            const matching = tx.matching || {};
+            const candidatos = matching.candidatos || [];
+            const container = document.getElementById('modalCandidatosBody');
+            container.innerHTML = '';
+            if (candidatos.length === 0) {
+                container.innerHTML = '<p style="color:#888;font-style:italic;">No se encontraron comprobantes automáticamente. Usá la búsqueda manual o confirmá sin seleccionar (se creará uno nuevo).</p>';
+            } else {
+                const table = document.createElement('table');
+                table.innerHTML = `
+                    <thead><tr>
+                        <th>Comprobante</th>
+                        <th>Proveedor</th>
+                        <th>Fecha</th>
+                        <th>GTIN</th>
+                        <th>Lote</th>
+                        <th>Score</th>
+                        <th>Acción</th>
+                    </tr></thead>
+                    <tbody id="mcCandidatosBody"></tbody>
+                `;
+                const tb = table.querySelector('tbody');
+                candidatos.forEach(c => {
+                    const scoreClass = c._match_score >= 100 ? 'badge-success' : c._match_score >= 60 ? 'badge-pending' : 'badge-error';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${c.pto_vta || ''}-${c.id_cmp || ''}</td>
+                        <td>${c.proveedor || '-'}</td>
+                        <td>${c.fecha_comprobante || '-'}</td>
+                        <td>${c.gtin || '-'}</td>
+                        <td>${c.lote || '-'}</td>
+                        <td><span class="badge ${scoreClass}">${c._match_score || 0}</span></td>
+                        <td><button class="btn-action btn-search" onclick="seleccionarCandidatoDecision(${c.cmp_recibido_item_id})">Seleccionar</button></td>
+                    `;
+                    tb.appendChild(tr);
+                });
+                container.appendChild(table);
+            }
+
+            document.getElementById('modalBuscarResult').innerHTML = '';
             document.getElementById('modalDecisionResult').style.display = 'none';
-            document.getElementById('modalDecision').style.display = 'flex';
+            document.getElementById('modalDecision').classList.add('active');
         }
 
         function cerrarModalDecision() {
-            document.getElementById('modalDecision').style.display = 'none';
+            document.getElementById('modalDecision').classList.remove('active');
             _decisionTx = null;
+            _selectedCmpItemId = null;
+            document.getElementById('modalBuscarResult').innerHTML = '';
+        }
+
+        function seleccionarCandidatoDecision(cmpItemId) {
+            _selectedCmpItemId = cmpItemId;
+            document.querySelectorAll('#mcCandidatosBody tr').forEach(tr => tr.style.background = '');
+            const rows = document.querySelectorAll('#mcCandidatosBody tr');
+            rows.forEach(tr => {
+                const btn = tr.querySelector('button');
+                if (btn && btn.getAttribute('onclick').includes(cmpItemId)) {
+                    tr.style.background = '#d1fae5';
+                    tr.style.outline = '2px solid #10b981';
+                }
+            });
+            document.getElementById('modalDecisionResult').style.display = 'block';
+            document.getElementById('modalDecisionResult').style.background = '#dbeafe';
+            document.getElementById('modalDecisionResult').style.color = '#1e40af';
+            document.getElementById('modalDecisionResult').innerHTML = `Comprobante #${cmpItemId} seleccionado. Hacé clic en "Confirmar recepción".`;
         }
 
         async function ejecutarConfirmar() {
@@ -1337,13 +1430,47 @@
             const gln = document.getElementById('glnSelect')?.value;
             if (!gln) { alert('Seleccioná una sucursal primero'); return; }
             _setModalBtnsEnabled(false);
+            const tx_data = {..._decisionTx};
+            if (_selectedCmpItemId) {
+                tx_data.cmp_recibido_item_id = _selectedCmpItemId;
+            }
             const res = await _postDecision('/api/confirmar_transaccion', {
                 id_transaccion: _decisionTx.id_transaccion,
                 gln,
-                tx_data: _decisionTx,
+                tx_data,
             });
             _setModalBtnsEnabled(true);
-            _mostrarResultadoModal(res, 'Confirmar');
+            const el = document.getElementById('modalDecisionResult');
+            el.style.display = 'block';
+            if (res.success) {
+                el.style.background = '#d1fae5';
+                el.style.color = '#065f46';
+                el.innerHTML = `✓ Confirmación exitosa.` + (res.codigo_transaccion ? ` Código: <b>${res.codigo_transaccion}</b>` : '');
+                setTimeout(() => { cerrarModalDecision(); loadNoConfirmadas(); }, 1800);
+            } else if (res.multiple) {
+                el.style.background = '#fef3c7';
+                el.style.color = '#92400e';
+                el.innerHTML = `Múltiples comprobantes encontrados. Seleccioná uno de la lista arriba.`;
+                if (res.candidatos) {
+                    const container = document.getElementById('modalCandidatosBody');
+                    container.innerHTML = '<h4>Seleccioná un comprobante:</h4>';
+                    const table = document.createElement('table');
+                    table.innerHTML = `<thead><tr><th>ID Comprobante</th><th>Fecha</th><th>Acción</th></tr></thead><tbody></tbody>`;
+                    const tb = table.querySelector('tbody');
+                    res.candidatos.forEach(c => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td>#${c.cmp_recibido_id || '?'}</td><td>${c.fecha_comprobante || '-'}</td>
+                            <td><button class="btn-action btn-search" onclick="seleccionarCandidatoDecision(${c.cmp_recibido_item_id})">Seleccionar</button></td>`;
+                        tb.appendChild(tr);
+                    });
+                    container.appendChild(table);
+                }
+            } else {
+                el.style.background = '#fee2e2';
+                el.style.color = '#7f1d1d';
+                const msg = res.error || (res.errores || []).join('; ') || 'Error desconocido';
+                el.innerHTML = `✗ Error: ${msg}`;
+            }
         }
 
         async function ejecutarAlertar() {
@@ -1356,7 +1483,89 @@
                 gln,
             });
             _setModalBtnsEnabled(true);
-            _mostrarResultadoModal(res, 'Alertar');
+            const el = document.getElementById('modalDecisionResult');
+            el.style.display = 'block';
+            if (res.success) {
+                el.style.background = '#d1fae5';
+                el.style.color = '#065f46';
+                el.innerHTML = `✓ Alerta enviada correctamente.`;
+                setTimeout(() => { cerrarModalDecision(); loadNoConfirmadas(); }, 1800);
+            } else {
+                el.style.background = '#fee2e2';
+                el.style.color = '#7f1d1d';
+                const msg = res.error || (res.errores || []).join('; ') || 'Error desconocido';
+                el.innerHTML = `✗ Error: ${msg}`;
+            }
+        }
+
+        async function alertarTransaccion(btn) {
+            const tx = JSON.parse(btn.getAttribute('data-tx').replace(/&quot;/g, '"'));
+            const gln = document.getElementById('glnSelect')?.value;
+            if (!gln) { alert('Seleccioná una sucursal'); return; }
+            if (!confirm(`¿Alertar transacción ${tx.id_transaccion || ''}? (marcar como no recibida)`)) return;
+            setBotonesHabilitados(false);
+            try {
+                const res = await fetch('/api/alertar_transaccion', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id_transaccion: tx.id_transaccion, gln}),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('✓ Alerta enviada');
+                    loadNoConfirmadas();
+                } else {
+                    alert('✗ Error: ' + (data.error || data.errores?.join('; ') || 'desconocido'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            setBotonesHabilitados(true);
+        }
+
+        async function buscarComprobantesDecision() {
+            if (!_decisionTx) return;
+            const gtin = document.getElementById('mcGtin').value.trim() || _decisionTx.gtin || '';
+            const nFactura = document.getElementById('mcFactura').value.trim() || _decisionTx.n_factura || '';
+            const nRemito = document.getElementById('mcRemito').value.trim() || _decisionTx.n_remito || '';
+            const fechaDesde = document.getElementById('mcFechaDesde').value || '';
+            const fechaHasta = document.getElementById('mcFechaHasta').value || '';
+
+            const params = new URLSearchParams();
+            if (gtin) params.append('gtin', gtin.replace(/^0+/, ''));
+            if (nFactura) params.append('n_factura', nFactura);
+            if (nRemito) params.append('n_remito', nRemito);
+            if (fechaDesde) params.append('fecha_desde', fechaDesde);
+            if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+            const gln = document.getElementById('glnSelect')?.value;
+            if (gln) params.append('gln_sucursal', gln);
+
+            try {
+                const res = await fetch(`/api/conciliar/comprobantes?${params}`);
+                const data = await res.json();
+                const container = document.getElementById('modalBuscarResult');
+                if (!Array.isArray(data) || data.length === 0) {
+                    container.innerHTML = '<p style="color:#888;font-style:italic;">No se encontraron comprobantes</p>';
+                    return;
+                }
+                let html = '<table style="font-size:12px;"><thead><tr><th>Comprobante</th><th>Proveedor</th><th>Fecha</th><th>GTIN</th><th>Lote</th><th>Estado</th><th>Acción</th></tr></thead><tbody>';
+                data.forEach(c => {
+                    const estado = c.anmat_transaccion ? 'Reportado' : (c.ctm_id ? 'Pendiente' : 'Sin trazabilidad');
+                    html += `<tr>
+                        <td>${c.pto_vta || ''}-${c.id_cmp || ''}</td>
+                        <td>${c.proveedor || '-'}</td>
+                        <td>${c.fecha_comprobante || '-'}</td>
+                        <td>${c.gtin || '-'}</td>
+                        <td>${c.lote || '-'}</td>
+                        <td>${estado}</td>
+                        <td><button class="btn-action btn-search" onclick="seleccionarCandidatoDecision(${c.cmp_recibido_item_id})">Seleccionar</button></td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (e) {
+                document.getElementById('modalBuscarResult').innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
+            }
         }
 
         function _setModalBtnsEnabled(enabled) {
@@ -1376,23 +1585,6 @@
                 return await r.json();
             } catch (e) {
                 return { success: false, error: String(e) };
-            }
-        }
-
-        function _mostrarResultadoModal(res, accion) {
-            const el = document.getElementById('modalDecisionResult');
-            el.style.display = 'block';
-            if (res.success) {
-                el.style.background = '#d1fae5';
-                el.style.color = '#065f46';
-                el.innerHTML = `✓ ${accion} ejecutado correctamente.`
-                    + (res.codigo_transaccion ? ` Código: <b>${res.codigo_transaccion}</b>` : '');
-                setTimeout(() => { cerrarModalDecision(); loadNoConfirmadas(); }, 1800);
-            } else {
-                el.style.background = '#fee2e2';
-                el.style.color = '#7f1d1d';
-                const msg = res.error || (res.errores || []).join('; ') || 'Error desconocido';
-                el.innerHTML = `✗ Error: ${msg}`;
             }
         }
 

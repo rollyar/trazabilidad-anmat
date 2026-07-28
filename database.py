@@ -1,8 +1,9 @@
 from firebird.driver import connect as fb_connect
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import logging
 import threading
 from datetime import datetime, timedelta
-from config import FIREBIRD_CONN_STRING, FIREBIRD_USER, FIREBIRD_PASSWORD, FIREBIRD_ROLE, FIREBIRD_HOST, FIREBIRD_PORT, FIREBIRD_DB
+from config import FIREBIRD_CONN_STRING, FIREBIRD_USER, FIREBIRD_PASSWORD, FIREBIRD_ROLE, FIREBIRD_HOST, FIREBIRD_PORT, FIREBIRD_DB, FIREBIRD_CONNECT_TIMEOUT
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -40,13 +41,26 @@ class FirebirdConnection:
                     pass
                 self._connection = None
 
-        self._connection = fb_connect(
-            f"{FIREBIRD_HOST}/{FIREBIRD_PORT}:{FIREBIRD_DB}",
-            user=FIREBIRD_USER,
-            password=FIREBIRD_PASSWORD,
-            role=FIREBIRD_ROLE,
-            charset='UTF8'
-        )
+        def _do_connect():
+            return fb_connect(
+                f"{FIREBIRD_HOST}/{FIREBIRD_PORT}:{FIREBIRD_DB}",
+                user=FIREBIRD_USER,
+                password=FIREBIRD_PASSWORD,
+                role=FIREBIRD_ROLE,
+                charset='UTF8'
+            )
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(_do_connect)
+            try:
+                self._connection = fut.result(timeout=FIREBIRD_CONNECT_TIMEOUT)
+            except FutureTimeout:
+                logger.error(f"Firebird no responde después de {FIREBIRD_CONNECT_TIMEOUT}s")
+                raise ConnectionError(
+                    f"No se pudo conectar a Firebird ({FIREBIRD_HOST}:{FIREBIRD_PORT}) "
+                    f"en {FIREBIRD_CONNECT_TIMEOUT}s. Verificá la red."
+                )
+
         logger.info("Conexión a Firebird establecida correctamente")
         return self._connection
 

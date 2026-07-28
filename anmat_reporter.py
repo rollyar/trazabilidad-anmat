@@ -22,7 +22,7 @@ sys.modules['imp'] = MagicMock()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import ANMAT_WSDL, ANMAT_USUARIO, ANMAT_PASSWORD
+from config import ANMAT_WSDL, ANMAT_USUARIO, ANMAT_PASSWORD, ANMAT_TIMEOUT
 from database import db
 
 try:
@@ -41,9 +41,6 @@ WSS_PASSWORD = "testwservicepsw"
 
 class AnmatReporter:
     """Reportador de movimientos a ANMAT usando pyafipws.trazamed.TrazaMed"""
-
-    # Timeout máximo para llamadas al WS de ANMAT (segundos)
-    ANMAT_TIMEOUT = 30
 
     # Archivo de estado para sincronización única desde ANMAT
     SYNC_STATE_FILE = os.path.join(os.path.dirname(__file__), 'anmat_sync_state.json')
@@ -94,8 +91,8 @@ class AnmatReporter:
         self.password_app = password
 
         try:
-            socket.setdefaulttimeout(self.ANMAT_TIMEOUT)
-            ok = self.ws.Conectar(cache=CACHE_DIR, wsdl=ANMAT_WSDL, timeout=self.ANMAT_TIMEOUT)
+            socket.setdefaulttimeout(ANMAT_TIMEOUT)
+            ok = self.ws.Conectar(cache=CACHE_DIR, wsdl=ANMAT_WSDL, timeout=ANMAT_TIMEOUT)
             if ok:
                 logger.info("Conectado a ANMAT correctamente")
             else:
@@ -936,7 +933,7 @@ class AnmatReporter:
             'detalles': []
         }
         try:
-            socket.setdefaulttimeout(self.ANMAT_TIMEOUT)
+            socket.setdefaulttimeout(ANMAT_TIMEOUT)
             params_rec = {'gln_destino': gln, 'fecha_desde': fecha_desde, 'fecha_hasta': fecha_hasta}
             res_rec = self.buscar_transacciones_ws(params_rec)
             txs_recepcion = res_rec.get('transacciones', [])
@@ -1325,7 +1322,7 @@ class AnmatReporter:
             }
 
         try:
-            socket.setdefaulttimeout(self.ANMAT_TIMEOUT)
+            socket.setdefaulttimeout(ANMAT_TIMEOUT)
             ok = self.ws.GetTransaccionesNoConfirmadas(
                 usuario=sucursal['anmat_user'],
                 password=sucursal['anmat_password']
@@ -1705,7 +1702,7 @@ class AnmatReporter:
                 - n_factura: Número de factura
         """
         try:
-            socket.setdefaulttimeout(self.ANMAT_TIMEOUT)
+            socket.setdefaulttimeout(ANMAT_TIMEOUT)
             gtin = params.get('gtin', '')
             serie = params.get('serie', '')
             gln_origen = params.get('gln_origen', '')

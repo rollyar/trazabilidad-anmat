@@ -52,6 +52,52 @@ class AnmatReporter:
         # No crear ws aquí — se crea por thread en la primera llamada
         pass
 
+    def _anmat_call(self, method_name, timeout=ANMAT_TIMEOUT, *args, **kwargs):
+        """Ejecuta un método del WS de ANMAT en un thread separado con timeout.
+        
+        Crea su propia conexión thread-local para evitar problemas de
+        reuso de conexiones HTTP con pysimplesoap.
+        """
+        from threading import Thread
+
+        result = []
+        error = []
+
+        def worker():
+            try:
+                socket.setdefaulttimeout(timeout)
+                ws = TrazaMed()
+                ws.Username = WSS_USERNAME
+                ws.Password = WSS_PASSWORD
+                ws.LanzarExcepciones = False
+                ws.Conectar(cache=CACHE_DIR, wsdl=ANMAT_WSDL, timeout=timeout)
+                method = getattr(ws, method_name)
+                r = method(*args, **kwargs)
+                result.append((r, ws))
+            except Exception as e:
+                error.append(e)
+
+        t = Thread(target=worker, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
+
+        if t.is_alive():
+            raise TimeoutError(f"ANMAT no respondió en {timeout}s (método {method_name})")
+        if error:
+            raise error[0]
+
+        r, ws = result[0]
+        # Copiar estado del WS worker al WS del thread principal
+        self.ws.Errores = ws.Errores
+        self.ws.Excepcion = ws.Excepcion
+        self.ws.ErrCode = ws.ErrCode
+        self.ws.ErrMsg = ws.ErrMsg
+        self.ws.CodigoTransaccion = getattr(ws, 'CodigoTransaccion', None)
+        self.ws.TransaccionPlainWS = getattr(ws, 'TransaccionPlainWS', [])
+        self.ws.XmlRequest = ws.XmlRequest
+        self.ws.XmlResponse = ws.XmlResponse
+        return r
+
     @property
     def ws(self):
         if not getattr(self._local, 'ws', None):
@@ -1323,7 +1369,8 @@ class AnmatReporter:
 
         try:
             socket.setdefaulttimeout(ANMAT_TIMEOUT)
-            ok = self.ws.GetTransaccionesNoConfirmadas(
+            ok = self._anmat_call(
+                'GetTransaccionesNoConfirmadas',
                 usuario=sucursal['anmat_user'],
                 password=sucursal['anmat_password']
             )

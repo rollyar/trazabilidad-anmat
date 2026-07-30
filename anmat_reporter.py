@@ -1354,17 +1354,11 @@ class AnmatReporter:
             }
 
         try:
-            desde = (datetime.today() - timedelta(days=dias)).strftime('%Y-%m-%d')
-            hasta = datetime.today().strftime('%Y-%m-%d')
-
             socket.setdefaulttimeout(ANMAT_TIMEOUT)
             ok = self._anmat_call(
                 'GetTransaccionesNoConfirmadas',
                 usuario=sucursal['anmat_user'],
                 password=sucursal['anmat_password'],
-                id_agente_destino=gln,
-                fecha_desde_op=desde,
-                fecha_hasta_op=hasta
             )
 
             if not ok:

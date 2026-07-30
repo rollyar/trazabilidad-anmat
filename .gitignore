@@ -14,3 +14,4 @@ anmat_sync_state.json
 .cache/
 *.pdf
 .claude/
+pyafipws/

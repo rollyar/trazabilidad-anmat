@@ -55,25 +55,21 @@ class AnmatReporter:
     def _anmat_call(self, method_name, timeout=ANMAT_TIMEOUT, *args, **kwargs):
         """Ejecuta un método del WS de ANMAT en un thread separado con timeout.
         
-        Crea su propia conexión thread-local para evitar problemas de
-        reuso de conexiones HTTP con pysimplesoap.
+        Usa la conexión ya establecida de self.ws (main thread). Si el método
+        se cuelga, el thread se abandona pero no bloquea el servidor.
         """
         from threading import Thread
 
         result = []
         error = []
+        ws = self.ws
 
         def worker():
             try:
                 socket.setdefaulttimeout(timeout)
-                ws = TrazaMed()
-                ws.Username = WSS_USERNAME
-                ws.Password = WSS_PASSWORD
-                ws.LanzarExcepciones = False
-                ws.Conectar(cache=CACHE_DIR, wsdl=ANMAT_WSDL, timeout=timeout)
                 method = getattr(ws, method_name)
                 r = method(*args, **kwargs)
-                result.append((r, ws))
+                result.append(r)
             except Exception as e:
                 error.append(e)
 
@@ -86,17 +82,7 @@ class AnmatReporter:
         if error:
             raise error[0]
 
-        r, ws = result[0]
-        # Copiar estado del WS worker al WS del thread principal
-        self.ws.Errores = ws.Errores
-        self.ws.Excepcion = ws.Excepcion
-        self.ws.ErrCode = ws.ErrCode
-        self.ws.ErrMsg = ws.ErrMsg
-        self.ws.CodigoTransaccion = getattr(ws, 'CodigoTransaccion', None)
-        self.ws.TransaccionPlainWS = getattr(ws, 'TransaccionPlainWS', [])
-        self.ws.XmlRequest = ws.XmlRequest
-        self.ws.XmlResponse = ws.XmlResponse
-        return r
+        return result[0]
 
     @property
     def ws(self):
@@ -1357,7 +1343,7 @@ class AnmatReporter:
         else:
             return self._get_no_confirmadas_todas()
 
-    def _get_no_confirmadas_por_gln(self, gln: str) -> Dict[str, Any]:
+    def _get_no_confirmadas_por_gln(self, gln: str, dias=90) -> Dict[str, Any]:
         """Obtiene transacciones no confirmadas para un GLN específico"""
         sucursal = db.get_sucursal_credenciales(gln)
         if not sucursal or not sucursal.get('anmat_user') or not sucursal.get('anmat_password'):
@@ -1368,11 +1354,17 @@ class AnmatReporter:
             }
 
         try:
+            desde = (datetime.today() - timedelta(days=dias)).strftime('%Y-%m-%d')
+            hasta = datetime.today().strftime('%Y-%m-%d')
+
             socket.setdefaulttimeout(ANMAT_TIMEOUT)
             ok = self._anmat_call(
                 'GetTransaccionesNoConfirmadas',
                 usuario=sucursal['anmat_user'],
-                password=sucursal['anmat_password']
+                password=sucursal['anmat_password'],
+                id_agente_destino=gln,
+                fecha_desde_op=desde,
+                fecha_hasta_op=hasta
             )
 
             if not ok:

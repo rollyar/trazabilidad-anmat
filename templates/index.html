@@ -1258,7 +1258,7 @@
             setBotonesHabilitados(false);
             document.getElementById('btn-actualizar-nc').innerHTML = '<span class="loader"></span>Buscando...';
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 25000);
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
             try {
                 showLoading('Buscando transacciones no confirmadas en ANMAT...');
                 const gln = document.getElementById('glnSelect')?.value;
@@ -1322,7 +1322,7 @@
                 console.error('Error:', e);
                 const tbody = document.getElementById('noConfirmadasBody');
                 const msg = e.name === 'AbortError'
-                    ? 'Tiempo de espera agotado (ANMAT no respondió en 25s). Verificá la conexión con ANMAT.'
+                    ? 'Tiempo de espera agotado (ANMAT no respondió en más de 45s). Verificá la conexión con ANMAT.'
                     : `Error de conexión: ${e.message || e}`;
                 tbody.innerHTML = `<tr><td colspan="9" style="color:red;">${msg}</td></tr>`;
                 hideLoading();

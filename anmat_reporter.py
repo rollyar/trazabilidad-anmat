@@ -1355,10 +1355,9 @@ class AnmatReporter:
 
         try:
             socket.setdefaulttimeout(ANMAT_TIMEOUT)
-            ok = self._anmat_call(
-                'GetTransaccionesNoConfirmadas',
+            ok = self.ws.GetTransaccionesNoConfirmadas(
                 usuario=sucursal['anmat_user'],
-                password=sucursal['anmat_password'],
+                password=sucursal['anmat_password']
             )
 
             if not ok:

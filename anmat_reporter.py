@@ -1371,8 +1371,7 @@ class AnmatReporter:
             while self.ws.LeerTransaccion():
                 dest = self.ws.GetParametro("_gln_destino")
                 orig = self.ws.GetParametro("_gln_origen")
-                if dest == gln or orig == gln:
-                    transacciones.append({
+                transacciones.append({
                         'id_transaccion': self.ws.GetParametro("_id_transaccion"),
                         'gtin': self.ws.GetParametro("_gtin"),
                         'lote': self.ws.GetParametro("_lote"),

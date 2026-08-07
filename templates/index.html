@@ -1262,7 +1262,7 @@
             try {
                 showLoading('Buscando transacciones no confirmadas en ANMAT...');
                 const gln = document.getElementById('glnSelect')?.value;
-                const url = gln ? `/api/conciliar/pendientes?gln=${gln}` : '/api/conciliar/pendientes';
+                const url = gln ? `/api/anmat_no_confirmadas?gln=${gln}&sin_db=1` : `/api/anmat_no_confirmadas?sin_db=1`;
                 const response = await fetch(url, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 const data = await response.json();

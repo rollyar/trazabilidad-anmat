@@ -187,6 +187,11 @@ def anmat_no_confirmadas():
 
         resultado = reporter.get_transacciones_no_confirmadas(gln)
 
+        # 'sin_db=1' devuelve solo lo de ANMAT (rápido, sin tocar Firebird por tx).
+        if request.args.get('sin_db') == '1':
+            resultado['auto_registradas'] = 0
+            return jsonify(resultado)
+
         auto_registradas = 0
         for tx in resultado.get('transacciones', []):
             gtin = tx.get('gtin', '').lstrip('0') or tx.get('gtin', '')
